@@ -12,7 +12,7 @@ Modes on the title screen: **Multiples**, **Factors**, **Primes**, **Equals**, *
 
 ## Controls
 
-- Arrow keys or WASD — move
+- Arrow keys, WASD, or IJKL — move
 - Space — munch
 - Esc — pause
 - M — mute / unmute

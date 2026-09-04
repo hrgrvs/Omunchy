@@ -227,12 +227,16 @@ class Game:
         mapping = {
             pygame.K_LEFT: (0, -1),
             pygame.K_a: (0, -1),
+            pygame.K_j: (0, -1),
             pygame.K_RIGHT: (0, 1),
             pygame.K_d: (0, 1),
+            pygame.K_l: (0, 1),
             pygame.K_UP: (-1, 0),
             pygame.K_w: (-1, 0),
+            pygame.K_i: (-1, 0),
             pygame.K_DOWN: (1, 0),
             pygame.K_s: (1, 0),
+            pygame.K_k: (1, 0),
         }
         step = mapping.get(key)
         if not step:
@@ -242,13 +246,13 @@ class Game:
 
     def _held_move(self) -> None:
         order = (
-            (pygame.K_LEFT, pygame.K_a, 0, -1),
-            (pygame.K_RIGHT, pygame.K_d, 0, 1),
-            (pygame.K_UP, pygame.K_w, -1, 0),
-            (pygame.K_DOWN, pygame.K_s, 1, 0),
+            (pygame.K_LEFT, pygame.K_a, pygame.K_j, 0, -1),
+            (pygame.K_RIGHT, pygame.K_d, pygame.K_l, 0, 1),
+            (pygame.K_UP, pygame.K_w, pygame.K_i, -1, 0),
+            (pygame.K_DOWN, pygame.K_s, pygame.K_k, 1, 0),
         )
-        for a, b, dr, dc in order:
-            if a in self.held or b in self.held:
+        for a, b, c, dr, dc in order:
+            if a in self.held or b in self.held or c in self.held:
                 if self.player.try_step(dr, dc):
                     self.move_cool = MOVE_DELAY
                 return
@@ -424,7 +428,7 @@ class Game:
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, GRID_TOP + GRID_H, WINDOW_W, BOTTOM_H))
-        hint = "ARROWS/WASD move   SPACE munch   ESC pause   M mute   F11 fullscreen"
+        hint = "ARROWS/WASD/IJKL move   SPACE munch   ESC pause   M mute   F11 fullscreen"
         draw_outlined_text(
             self.screen,
             hint,
