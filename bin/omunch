@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""Launch Omunch from a checkout (venv should be active)."""
+
+from omunch.app import main
+
+if __name__ == "__main__":
+    main()
