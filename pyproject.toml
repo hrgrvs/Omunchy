@@ -4,7 +4,8 @@ version = "1.2.0"
 description = "Omunchy — a math arcade for elementary grades 2–5"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
+authors = [{ name = "Damon Hargraves" }]
 dependencies = ["pygame>=2.5.2"]
 
 [project.scripts]

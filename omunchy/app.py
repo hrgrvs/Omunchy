@@ -64,6 +64,7 @@ from omunchy.title_art import (
     BLURB_A,
     BLURB_B,
     CONTROLS_HINT,
+    LICENSE_LINE,
     START_HINT,
     TAGLINE,
     TITLE_BANNER,
@@ -583,7 +584,8 @@ class Game:
             sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
             x = cx + (i - 2) * 180
             self.screen.blit(sprite, sprite.get_rect(center=(x, y + 286)))
-        draw_outlined_text(self.screen, CONTROLS_HINT, self.font_tiny, CREAM, (cx, WINDOW_H - 28))
+        draw_outlined_text(self.screen, LICENSE_LINE, self.font_tiny, CREAM, (cx, WINDOW_H - 48))
+        draw_outlined_text(self.screen, CONTROLS_HINT, self.font_tiny, CREAM, (cx, WINDOW_H - 24))
 
     def _draw_modes(self) -> None:
         draw_outlined_text(self.screen, "CHOOSE A MODE", self.font_lg, GOLD, (WINDOW_W // 2, 90))

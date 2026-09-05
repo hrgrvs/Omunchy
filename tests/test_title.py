@@ -1,7 +1,8 @@
+from pathlib import Path
 import unittest
 
 from omunchy.constants import TITLE
-from omunchy.title_art import CONTROLS_HINT, TAGLINE, TITLE_BANNER, TITLE_DOODLE
+from omunchy.title_art import CONTROLS_HINT, LICENSE_LINE, TAGLINE, TITLE_BANNER, TITLE_DOODLE
 
 
 class TitleArtTests(unittest.TestCase):
@@ -15,8 +16,17 @@ class TitleArtTests(unittest.TestCase):
         self.assertIn("2–5", TAGLINE)
         self.assertIn("Esc", CONTROLS_HINT)
         self.assertIn("F11", CONTROLS_HINT)
+        self.assertIn("Damon Hargraves", LICENSE_LINE)
+        self.assertIn("MIT", LICENSE_LINE)
         self.assertNotIn("Omunch\n", TITLE + "\n")
         self.assertNotEqual(TITLE, "Omunch")
+
+    def test_license_file_is_mit_damon_hargraves(self) -> None:
+        text = Path(__file__).resolve().parents[1].joinpath("LICENSE").read_text()
+        self.assertTrue(text.startswith("MIT License"))
+        self.assertIn("Copyright (c) Damon Hargraves", text)
+        self.assertNotIn("Omunchy contributors", text)
+        self.assertIn("THE SOFTWARE IS PROVIDED \"AS IS\"", text)
 
 
 if __name__ == "__main__":

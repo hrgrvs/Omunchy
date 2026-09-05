@@ -66,4 +66,4 @@ SDL_VIDEODRIVER=x11 python -m omunchy
 
 ## License
 
-MIT
+[MIT](LICENSE) — Copyright (c) Damon Hargraves. Full text is in [`LICENSE`](LICENSE).
