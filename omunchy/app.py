@@ -87,6 +87,63 @@ from omunchy.wearables import Outfit, Wearable, offer_wearables
 
 TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, WARDROBE_ST, BESTIARY_ST, OVER_ST = range(10)
 
+# One KEYDOWN = one step. Never latch these behind a missed KEYUP (macOS).
+DIRECTION_KEYS = frozenset(
+    (
+        pygame.K_LEFT,
+        pygame.K_RIGHT,
+        pygame.K_UP,
+        pygame.K_DOWN,
+        pygame.K_a,
+        pygame.K_d,
+        pygame.K_w,
+        pygame.K_s,
+        pygame.K_j,
+        pygame.K_l,
+        pygame.K_i,
+        pygame.K_k,
+    )
+)
+MOVE_KEYS: dict[int, tuple[int, int]] = {
+    pygame.K_LEFT: (0, -1),
+    pygame.K_a: (0, -1),
+    pygame.K_j: (0, -1),
+    pygame.K_RIGHT: (0, 1),
+    pygame.K_d: (0, 1),
+    pygame.K_l: (0, 1),
+    pygame.K_UP: (-1, 0),
+    pygame.K_w: (-1, 0),
+    pygame.K_i: (-1, 0),
+    pygame.K_DOWN: (1, 0),
+    pygame.K_s: (1, 0),
+    pygame.K_k: (1, 0),
+}
+_FOCUS_EVENT_TYPES = tuple(
+    getattr(pygame, name)
+    for name in (
+        "WINDOWFOCUSLOST",
+        "WINDOWFOCUSGAINED",
+        "WINDOWMINIMIZED",
+        "WINDOWRESTORED",
+        "ACTIVEEVENT",
+        "APP_WILLENTERBACKGROUND",
+        "APP_DIDENTERFOREGROUND",
+    )
+    if hasattr(pygame, name)
+)
+
+
+def _is_os_key_repeat(event: pygame.event.Event) -> bool:
+    """True for SDL hold-repeat KEYDOWNs. A real tap has repeat == 0."""
+    return bool(getattr(event, "repeat", 0))
+
+
+def _disable_text_input() -> None:
+    """IME/text-input on macOS can swallow keys until the window is clicked."""
+    stop = getattr(pygame.key, "stop_text_input", None)
+    if stop is not None:
+        stop()
+
 
 @dataclass
 class EatFx:
@@ -136,6 +193,7 @@ class Game:
         self.font_tiny = _font(16)
         self.font_cell = _font(34, True)
         pygame.key.set_repeat()  # tap-only: no OS/pygame key-repeat stepping
+        _disable_text_input()
 
         self.state = TITLE_ST
         self.mode_index = 0
@@ -238,17 +296,20 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+            elif _FOCUS_EVENT_TYPES and event.type in _FOCUS_EVENT_TYPES:
+                # macOS fullscreen / Cmd-Tab often drops KEYUP; don't keep a dead latch.
+                self.held.clear()
             elif event.type == pygame.KEYUP:
                 self.held.discard(event.key)
             elif event.type == pygame.KEYDOWN:
-                if event.key in self.held:
-                    # Ignore OS / pygame key-repeat. One tap = one action.
+                if _is_os_key_repeat(event):
+                    continue
+                if event.key == pygame.K_ESCAPE:
+                    # Escape always unsticks: clear a stale held set and handle the tap.
+                    self.held.clear()
+                    self._keydown(event.key)
                     continue
                 self.held.add(event.key)
-                # Celebrate skip
-                if self.state == CELEBRATE_ST and event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                    self._open_wardrobe()
-                    continue
                 self._keydown(event.key)
 
     def _keydown(self, key: int) -> None:
@@ -258,6 +319,10 @@ class Game:
         if key == pygame.K_F11:
             self.fullscreen = not self.fullscreen
             self.screen = self._make_screen(fullscreen=self.fullscreen)
+            self.held.clear()
+            pygame.key.set_repeat()
+            _disable_text_input()
+            pygame.event.pump()
             return
         if key == pygame.K_q and self.state in (TITLE_ST, OVER_ST, PAUSE_ST):
             if self.state == PAUSE_ST:
@@ -327,11 +392,11 @@ class Game:
                 self._close_bestiary()
             return
         if self.state == CLEAR_ST:
-            if key in (pygame.K_SPACE, pygame.K_RETURN):
+            if key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
                 self._advance_from_clear()
             return
         if self.state == CELEBRATE_ST:
-            if key in (pygame.K_SPACE, pygame.K_RETURN):
+            if key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
                 self._open_wardrobe()
             return
         if self.state == WARDROBE_ST:
@@ -371,25 +436,12 @@ class Game:
             self._begin_level()
 
     def _try_move_key(self, key: int) -> None:
-        mapping = {
-            pygame.K_LEFT: (0, -1),
-            pygame.K_a: (0, -1),
-            pygame.K_j: (0, -1),
-            pygame.K_RIGHT: (0, 1),
-            pygame.K_d: (0, 1),
-            pygame.K_l: (0, 1),
-            pygame.K_UP: (-1, 0),
-            pygame.K_w: (-1, 0),
-            pygame.K_i: (-1, 0),
-            pygame.K_DOWN: (1, 0),
-            pygame.K_s: (1, 0),
-            pygame.K_k: (1, 0),
-        }
-        step = mapping.get(key)
+        step = MOVE_KEYS.get(key)
         if not step:
             return
         rows, cols = self._board_size()
-        self.player.try_step(*step, rows, cols)
+        # Chomp is visual lock for munch only — a legal direction tap always steps.
+        self.player.try_step(*step, rows, cols, ignore_chomp=True)
 
     def _munch(self) -> None:
         if self.board is None or self.rule is None:
@@ -620,7 +672,7 @@ class Game:
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
-        hint = "ARROWS/WASD/IJKL tap to move   SPACE munch   ESC pause   M mute   F11 window"
+        hint = "ARROWS/WASD/IJKL tap to move   SPACE munch   ESC pause / leave a screen   M mute   F11 window"
         draw_outlined_text(
             self.screen,
             hint,
@@ -758,7 +810,13 @@ class Game:
             CREAM,
             (WINDOW_W // 2, 456),
         )
-        draw_outlined_text(self.screen, "Press SPACE to start", self.font_md, YELLOW, (WINDOW_W // 2, 500))
+        draw_outlined_text(
+            self.screen,
+            "SPACE / ENTER start    ESC pause",
+            self.font_md,
+            YELLOW,
+            (WINDOW_W // 2, 500),
+        )
 
     def _draw_pause(self) -> None:
         self._dim()
@@ -798,7 +856,13 @@ class Game:
             CREAM,
             (WINDOW_W // 2, 380),
         )
-        draw_outlined_text(self.screen, "Press SPACE", self.font_md, YELLOW, (WINDOW_W // 2, 460))
+        draw_outlined_text(
+            self.screen,
+            "SPACE / ENTER / ESC continue",
+            self.font_md,
+            YELLOW,
+            (WINDOW_W // 2, 460),
+        )
 
     def _draw_game_over(self) -> None:
         self._dim()
@@ -975,7 +1039,13 @@ class Game:
         rect = sprite.get_rect(center=(WINDOW_W // 2, WINDOW_H // 2 + 40 - bounce))
         self.screen.blit(sprite, rect)
         draw_outlined_text(self.screen, self.celebrate_banner, self.font_xl, GOLD, (WINDOW_W // 2, WINDOW_H // 2 - 60))
-        draw_outlined_text(self.screen, "Space / Enter to continue", self.font_sm, CREAM, (WINDOW_W // 2, WINDOW_H - 70))
+        draw_outlined_text(
+            self.screen,
+            "SPACE / ENTER / ESC continue",
+            self.font_sm,
+            CREAM,
+            (WINDOW_W // 2, WINDOW_H - 70),
+        )
 
 
 def main() -> None:

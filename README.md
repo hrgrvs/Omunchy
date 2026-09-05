@@ -90,13 +90,13 @@ Uses system pygame when available, otherwise sets up a venv. Prefer `python -m o
 
 ## Controls
 
-- Arrows / WASD / IJKL — tap to move one cell (also pick a wearable)
-- Space — munch (or confirm a wearable)
-- Esc — pause (quit from the title screen; skip a wearable)
+- Arrows / WASD / IJKL — tap to move one cell (also pick a wearable). Every tap steps immediately; holding does not walk.
+- Space — munch (or confirm a wearable / skip get-ready, level-clear, and celebration)
+- Esc — leave or unstick the current screen (quit on the title screen; pause while playing; skip a wearable / celebration / level-clear; close Troggles)
 - F11 — toggle fullscreen / window
 - M — mute
 - T — Troggles page (title / pause)
-- Q — quit (title / game over)
+- Q — quit (title / game over / pause → title)
 
 ## If the window doesn’t open
 
