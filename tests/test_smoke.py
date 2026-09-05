@@ -63,6 +63,8 @@ class PygameSmokeTests(unittest.TestCase):
             self.assertGreater(game.board.remaining_correct(), 0, msg=mode)
             self.assertEqual((game.board.rows, game.board.cols), (4, 5), msg=mode)
             self.assertTrue(game.board.in_bounds(game.player.row, game.player.col))
+        # Pairings grab does not start an eat animation — use a munch mode for the rest.
+        game.start_run("multiples")
         self.assertEqual(len(game.troggles), 1)
         self.assertEqual(game.troggles[0].kind, "wander")
 
