@@ -49,6 +49,7 @@ class Muncher(Actor):
         return True
 
 
+@dataclass
 class Troggle(Actor):
     kind: str = "wander"  # wander | chase
     interval: float = 0.75
