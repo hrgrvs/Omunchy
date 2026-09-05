@@ -13,26 +13,25 @@ from omunch.constants import (
     BG,
     BG_DEEP,
     BLACK,
-    BOTTOM_H,
     CELL_BG,
     CELL_BG_ALT,
     CELL_BORDER,
     CELL_EMPTY,
-    CELL_H,
     CELL_HL,
-    CELL_W,
     CREAM,
     CYAN,
+    EMBER,
+    FLAME,
     FPS,
     GOLD,
     GREEN,
-    GRID_H,
-    GRID_LEFT,
-    GRID_TOP,
-    GRID_W,
+    grid_geometry,
+    HINT_H,
     HIT_IFRAMES,
     HUD_BG,
     HUD_H,
+    MAX_COLS,
+    MAX_ROWS,
     MODE_BLURBS,
     MODE_LABELS,
     MODES,
@@ -50,10 +49,17 @@ from omunch.constants import (
     WINDOW_W,
     YELLOW,
 )
-from omunch.entities import Muncher, Troggle, safe_player_spawn, spawn_troggles
+from omunch.entities import (
+    Muncher,
+    Troggle,
+    apply_hunter_eats,
+    player_hits_hazard,
+    safe_player_spawn,
+    spawn_troggles,
+)
 from omunch.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
 from omunch.rules import Rule, rule_for
-from omunch.sprites import cell_rect, draw_outlined_text, muncher_surface, troggle_surface
+from omunch.sprites import cell_rect, draw_outlined_text, fire_surface, muncher_surface, troggle_surface
 
 TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, OVER_ST = range(8)
 
@@ -93,7 +99,7 @@ class Game:
         self.lives = START_LIVES
         self.rule: Rule | None = None
         self.board: Board | None = None
-        self.player = Muncher(row=3, col=3)
+        self.player = Muncher(row=1, col=1)
         self.troggles: list[Troggle] = []
         self.move_cool = 0.0
         self.freeze = 0.0
@@ -114,14 +120,24 @@ class Game:
         self.lives = START_LIVES
         self._begin_level()
 
+    def _board_size(self) -> tuple[int, int]:
+        if self.board is not None:
+            return self.board.rows, self.board.cols
+        return MAX_ROWS, MAX_COLS
+
+    def _grid_geom(self) -> tuple[int, int, int, int]:
+        rows, cols = self._board_size()
+        return grid_geometry(rows, cols)
+
     def _begin_level(self) -> None:
         self.rule = rule_for(self.selected_mode, self.level)
         self.board = generate_board(self.rule, self.level, self.rng)
+        rows, cols = self.board.rows, self.board.cols
         occupied: set[tuple[int, int]] = set()
-        pr, pc = safe_player_spawn(occupied, self.rng)
+        pr, pc = safe_player_spawn(occupied, self.rng, rows, cols)
         self.player = Muncher(row=pr, col=pc)
         occupied.add((pr, pc))
-        self.troggles = spawn_troggles(self.level, (pr, pc), self.rng)
+        self.troggles = spawn_troggles(self.level, (pr, pc), self.rng, rows, cols)
         self.move_cool = 0.0
         self.freeze = 0.35
         self.flash_wrong = 0.0
@@ -259,7 +275,8 @@ class Game:
         step = mapping.get(key)
         if not step:
             return
-        if self.player.try_step(*step):
+        rows, cols = self._board_size()
+        if self.player.try_step(*step, rows, cols):
             self.move_cool = MOVE_DELAY
 
     def _held_move(self) -> None:
@@ -271,7 +288,8 @@ class Game:
         )
         for a, b, c, dr, dc in order:
             if a in self.held or b in self.held or c in self.held:
-                if self.player.try_step(dr, dc):
+                rows, cols = self._board_size()
+                if self.player.try_step(dr, dc, rows, cols):
                     self.move_cool = MOVE_DELAY
                 return
 
@@ -310,8 +328,9 @@ class Game:
             return
         self.player.iframe_timer = HIT_IFRAMES
         self.freeze = TROGGLE_FREEZE
+        rows, cols = self._board_size()
         occupied = {(t.row, t.col) for t in self.troggles}
-        pr, pc = safe_player_spawn(occupied, self.rng)
+        pr, pc = safe_player_spawn(occupied, self.rng, rows, cols)
         self.player.row, self.player.col = pr, pc
 
     def _update(self, dt: float) -> None:
@@ -331,16 +350,21 @@ class Game:
         self.player.tick(dt)
         self.move_cool = max(0.0, self.move_cool - dt)
         self.freeze = max(0.0, self.freeze - dt)
+        rows, cols = self._board_size()
         if self.move_cool <= 0:
             self._held_move()
+        pack = tuple(self.troggles)
         if self.freeze <= 0:
             for troggle in self.troggles:
-                troggle.tick_and_maybe_move(dt, self.player.pos, self.rng)
-        if not self.player.invulnerable():
+                troggle.update(dt, self.player.pos, self.rng, rows, cols, pack)
+            self.troggles = apply_hunter_eats(self.troggles)
+        else:
             for troggle in self.troggles:
-                if troggle.pos == self.player.pos:
-                    self._lose_life(from_troggle=True)
-                    break
+                troggle.tick_specials(dt, self.player.pos, rows, cols)
+        if not self.player.invulnerable():
+            if player_hits_hazard(self.player.pos, self.troggles, rows, cols):
+                self._lose_life(from_troggle=True)
+        self.troggles = [t for t in self.troggles if not t.exploded]
 
     def _draw(self) -> None:
         self.screen.fill(BG)
@@ -368,7 +392,14 @@ class Game:
         pygame.draw.rect(self.screen, (18, 70, 48), (0, HUD_H - 3, WINDOW_W, 3))
         draw_outlined_text(self.screen, f"SCORE {self.score:05d}", self.font_sm, GOLD, (120, 24))
         draw_outlined_text(self.screen, f"BEST {self.best:05d}", self.font_tiny, CREAM, (120, 48))
-        draw_outlined_text(self.screen, f"LEVEL {self.level}", self.font_sm, CREAM, (WINDOW_W // 2, 24))
+        rows, cols = self._board_size()
+        draw_outlined_text(
+            self.screen,
+            f"LEVEL {self.level}  {rows}×{cols}",
+            self.font_sm,
+            CREAM,
+            (WINDOW_W // 2, 24),
+        )
         mode_name = MODE_LABELS.get(self.selected_mode, "")
         draw_outlined_text(self.screen, mode_name.upper(), self.font_tiny, CYAN, (WINDOW_W // 2, 48))
 
@@ -392,10 +423,12 @@ class Game:
         self._draw_hud()
         if self.board is None:
             return
+        grid_left, grid_top, _grid_w, _grid_h = self._grid_geom()
+        rows, cols = self.board.rows, self.board.cols
         flash = self.flash_wrong > 0 and int(self.anim * 16) % 2 == 0
-        for r in range(6):
-            for c in range(8):
-                rect = cell_rect(r, c, GRID_LEFT, GRID_TOP)
+        for r in range(rows):
+            for c in range(cols):
+                rect = cell_rect(r, c, grid_left, grid_top)
                 cell = self.board.cell(r, c)
                 if cell.munched:
                     fill = CELL_EMPTY
@@ -414,8 +447,10 @@ class Game:
                         rect.center,
                     )
 
+        self._draw_hazards(grid_left, grid_top, rows, cols)
+
         # Player highlight
-        pref = cell_rect(self.player.row, self.player.col, GRID_LEFT, GRID_TOP)
+        pref = cell_rect(self.player.row, self.player.col, grid_left, grid_top)
         pygame.draw.rect(self.screen, CELL_HL, pref.inflate(-2, -2), 3, border_radius=8)
 
         frame = int(self.anim * 6)
@@ -432,20 +467,52 @@ class Game:
             self.screen.blit(sprite, dest)
 
         for troggle in self.troggles:
-            trect = cell_rect(troggle.row, troggle.col, GRID_LEFT, GRID_TOP)
-            sprite = troggle_surface(troggle.kind, frame, troggle.heading[0])
+            trect = cell_rect(troggle.row, troggle.col, grid_left, grid_top)
+            flash_t = troggle.is_telegraphing and int(self.anim * 10) % 2 == 0
+            sprite = troggle_surface(troggle.kind, frame, troggle.heading[0], flash_t)
             dest = sprite.get_rect(center=(trect.centerx, trect.centery + 8))
             self.screen.blit(sprite, dest)
 
-        pygame.draw.rect(self.screen, BG_DEEP, (0, GRID_TOP + GRID_H, WINDOW_W, BOTTOM_H))
+        pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
         hint = "ARROWS/WASD/IJKL move   SPACE munch   ESC pause   M mute   F11 fullscreen"
         draw_outlined_text(
             self.screen,
             hint,
             self.font_tiny,
             CREAM,
-            (WINDOW_W // 2, GRID_TOP + GRID_H + BOTTOM_H // 2),
+            (WINDOW_W // 2, WINDOW_H - HINT_H // 2),
         )
+
+    def _draw_hazards(self, grid_left: int, grid_top: int, rows: int, cols: int) -> None:
+        frame = int(self.anim * 8)
+        for troggle in self.troggles:
+            if troggle.kind == "fire" and (troggle.is_firing or troggle.is_winding_fire):
+                fr, fc = troggle.front_cell()
+                if not (0 <= fr < rows and 0 <= fc < cols):
+                    continue
+                rect = cell_rect(fr, fc, grid_left, grid_top)
+                if troggle.is_firing:
+                    glow = pygame.Surface(rect.inflate(-8, -8).size, pygame.SRCALPHA)
+                    glow.fill((*EMBER, 90))
+                    self.screen.blit(glow, rect.inflate(-8, -8).topleft)
+                    flame = fire_surface(frame)
+                    self.screen.blit(flame, flame.get_rect(center=(rect.centerx, rect.centery + 6)))
+                else:
+                    pygame.draw.rect(self.screen, FLAME, rect.inflate(-10, -10), 2, border_radius=6)
+            if troggle.is_telegraphing:
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nr, nc = troggle.row + dr, troggle.col + dc
+                    if not (0 <= nr < rows and 0 <= nc < cols):
+                        continue
+                    rect = cell_rect(nr, nc, grid_left, grid_top)
+                    pulse = 80 + int(70 * abs((self.anim * 8) % 2 - 1))
+                    pygame.draw.rect(
+                        self.screen,
+                        (pulse, 60, 40),
+                        rect.inflate(-8, -8),
+                        3,
+                        border_radius=6,
+                    )
 
     def _dim(self, alpha: int = 170) -> None:
         veil = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
@@ -453,27 +520,27 @@ class Game:
         self.screen.blit(veil, (0, 0))
 
     def _draw_title(self) -> None:
-        draw_outlined_text(self.screen, "OMUNCH", self.font_xl, GOLD, (WINDOW_W // 2, 180))
+        draw_outlined_text(self.screen, "OMUNCH", self.font_xl, GOLD, (WINDOW_W // 2, 130))
         draw_outlined_text(
             self.screen,
             "A math arcade for grades 2–5",
             self.font_sm,
             CREAM,
-            (WINDOW_W // 2, 280),
+            (WINDOW_W // 2, 200),
         )
         draw_outlined_text(
             self.screen,
             "Munch every number that matches the rule.",
             self.font_sm,
             WHITE,
-            (WINDOW_W // 2, 360),
+            (WINDOW_W // 2, 255),
         )
         draw_outlined_text(
             self.screen,
             "Wrong munches and Troggles cost a life.",
             self.font_sm,
             WHITE,
-            (WINDOW_W // 2, 396),
+            (WINDOW_W // 2, 290),
         )
         pulse = 180 + int(40 * abs((self.anim * 2) % 2 - 1))
         draw_outlined_text(
@@ -481,20 +548,23 @@ class Game:
             "Press ENTER or SPACE",
             self.font_md,
             (pulse, pulse, 80),
-            (WINDOW_W // 2, 500),
+            (WINDOW_W // 2, 360),
         )
+        m = muncher_surface(int(self.anim * 6), 1, int(self.anim * 2) % 4 == 0, False)
+        self.screen.blit(m, m.get_rect(center=(WINDOW_W // 2, 450)))
+        kinds = ("wander", "chase", "fire", "exploder", "hunter")
+        frame = int(self.anim * 5)
+        for i, kind in enumerate(kinds):
+            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
+            x = 160 + i * 160
+            self.screen.blit(sprite, sprite.get_rect(center=(x, 560)))
         draw_outlined_text(
             self.screen,
             "M mute   F11 fullscreen   Q quit",
             self.font_tiny,
             CREAM,
-            (WINDOW_W // 2, 660),
+            (WINDOW_W // 2, 680),
         )
-        # Decorative muncher / troggle
-        m = muncher_surface(int(self.anim * 6), 1, int(self.anim * 2) % 4 == 0, False)
-        t = troggle_surface("wander", int(self.anim * 5), -1)
-        self.screen.blit(m, m.get_rect(center=(220, 540)))
-        self.screen.blit(t, t.get_rect(center=(740, 540)))
 
     def _draw_modes(self) -> None:
         draw_outlined_text(self.screen, "CHOOSE A MODE", self.font_lg, GOLD, (WINDOW_W // 2, 90))
@@ -540,6 +610,13 @@ class Game:
             self.font_sm,
             CREAM,
             (WINDOW_W // 2, 420),
+        )
+        draw_outlined_text(
+            self.screen,
+            "The board starts small and grows as you level up.",
+            self.font_tiny,
+            CREAM,
+            (WINDOW_W // 2, 456),
         )
         draw_outlined_text(self.screen, "Press SPACE to start", self.font_md, YELLOW, (WINDOW_W // 2, 500))
 
