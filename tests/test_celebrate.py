@@ -1,6 +1,6 @@
 import unittest
 
-from omunch.celebrate import (
+from omunchy.celebrate import (
     CELEBRATE_EVERY,
     CELEBRATE_SECONDS,
     banner_for_level,

@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import random
 
-from omunch.constants import MAX_COLS, MAX_ROWS
-from omunch.rules import Rule, factors_of, is_prime
+from omunchy.constants import MAX_COLS, MAX_ROWS
+from omunchy.rules import Rule, factors_of, is_prime
 
 # (rows, cols) for levels 1–2, 3–4, 5–6, 7–8, then 9+ stays at full size.
 BOARD_STEPS: tuple[tuple[int, int], ...] = (

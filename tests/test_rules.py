@@ -1,6 +1,6 @@
 import unittest
 
-from omunch.rules import factors_of, is_prime, resolve_play_mode, rule_for
+from omunchy.rules import factors_of, is_prime, resolve_play_mode, rule_for
 
 
 class PrimeTests(unittest.TestCase):

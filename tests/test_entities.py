@@ -1,14 +1,16 @@
 import random
 import unittest
 
-from omunch.constants import EXPLODE_WINDUP, FIRE_DURATION, FIRE_WINDUP
-from omunch.entities import (
+from omunchy.constants import EXPLODE_WINDUP, FIRE_DURATION, FIRE_WINDUP
+from omunchy.entities import (
     Muncher,
     Troggle,
     apply_hunter_eats,
     front_cell,
     is_cardinal_adjacent,
     player_hits_hazard,
+    spawn_troggles,
+    troggle_interval_for,
     troggle_kinds_for_level,
 )
 
@@ -133,6 +135,26 @@ class RosterTests(unittest.TestCase):
         self.assertIn("fire", troggle_kinds_for_level(5))
         self.assertIn("exploder", troggle_kinds_for_level(7))
         self.assertIn("hunter", troggle_kinds_for_level(9))
+
+
+class PaceTests(unittest.TestCase):
+    def test_intervals_are_slower_and_ranked(self) -> None:
+        wander = troggle_interval_for(1, "wander")
+        chase = troggle_interval_for(1, "chase")
+        fire = troggle_interval_for(1, "fire")
+        exploder = troggle_interval_for(1, "exploder")
+        hunter = troggle_interval_for(1, "hunter")
+        # Noticeably slower than the first-release start of 0.96s.
+        self.assertGreaterEqual(wander, 1.30)
+        self.assertGreater(chase, wander)
+        self.assertGreater(fire, wander)
+        self.assertGreater(exploder, wander)
+        self.assertLess(hunter, wander)
+        self.assertGreater(troggle_interval_for(5, "wander"), 1.15)
+        self.assertGreater(troggle_interval_for(10, "wander"), 1.00)
+        self.assertGreater(troggle_interval_for(16, "wander"), 0.68)
+        spawned = spawn_troggles(1, (1, 1), random.Random(0), 3, 4)
+        self.assertAlmostEqual(spawned[0].interval, wander)
 
 
 if __name__ == "__main__":

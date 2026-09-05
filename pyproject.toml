@@ -1,21 +1,22 @@
 [project]
-name = "omunch"
-version = "1.1.0"
-description = "Omunch — a math arcade for elementary grades 2–5"
+name = "omunchy"
+version = "1.2.0"
+description = "Omunchy — a math arcade for elementary grades 2–5"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
+authors = [{ name = "Damon Hargraves" }]
 dependencies = ["pygame>=2.5.2"]
 
 [project.scripts]
-omunch = "omunch.app:main"
+omunchy = "omunchy.app:main"
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["omunch*"]
+include = ["omunchy*"]
 
 [tool.setuptools.package-data]
-omunch = ["assets/sounds/*.wav"]
+omunchy = ["assets/sounds/*.wav"]

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Install deps if needed, then launch Omunch.
+# Install deps if needed, then launch Omunchy.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-echo "Omunch — starting…"
+echo "Omunchy — starting…"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Missing python3. On Omarchy run: sudo pacman -S python" >&2
@@ -13,7 +13,7 @@ fi
 # Prefer system pygame (fast on Arch/Omarchy) when present.
 if python3 -c 'import pygame' 2>/dev/null; then
   echo "Using system pygame."
-  exec python3 -m omunch "$@"
+  exec python3 -m omunchy "$@"
 fi
 
 echo "No system pygame — using a local venv (first run may take a minute)…"
@@ -31,4 +31,4 @@ if ! python -c 'import pygame' 2>/dev/null; then
 fi
 
 echo "Launching…"
-exec python -m omunch "$@"
+exec python -m omunchy "$@"

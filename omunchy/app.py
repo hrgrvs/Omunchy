@@ -7,9 +7,9 @@ import sys
 
 import pygame
 
-from omunch.audio import Audio
-from omunch.board import Board, generate_board
-from omunch.constants import (
+from omunchy.audio import Audio
+from omunchy.board import Board, generate_board
+from omunchy.constants import (
     BG,
     BG_DEEP,
     BLACK,
@@ -49,7 +49,7 @@ from omunch.constants import (
     WINDOW_W,
     YELLOW,
 )
-from omunch.entities import (
+from omunchy.entities import (
     Muncher,
     Troggle,
     apply_hunter_eats,
@@ -57,9 +57,19 @@ from omunch.entities import (
     safe_player_spawn,
     spawn_troggles,
 )
-from omunch.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
-from omunch.rules import Rule, rule_for
-from omunch.sprites import cell_rect, draw_outlined_text, fire_surface, muncher_surface, troggle_surface
+from omunchy.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
+from omunchy.rules import Rule, rule_for
+from omunchy.sprites import cell_rect, draw_outlined_text, fire_surface, muncher_surface, troggle_surface
+from omunchy.title_art import (
+    BLURB_A,
+    BLURB_B,
+    CONTROLS_HINT,
+    LICENSE_LINE,
+    START_HINT,
+    TAGLINE,
+    TITLE_BANNER,
+    TITLE_DOODLE,
+)
 
 TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, OVER_ST = range(8)
 
@@ -76,12 +86,12 @@ def _font(size: int, bold: bool = False) -> pygame.font.Font:
 class Game:
     def __init__(self) -> None:
         pygame.display.set_caption(TITLE)
-        self.screen = self._make_screen(fullscreen=False)
+        self.fullscreen = True
+        self.screen = self._make_screen(fullscreen=True)
         self.clock = pygame.time.Clock()
         self.audio = Audio()
         self.rng = random.Random()
         self.running = True
-        self.fullscreen = False
 
         self.font_xl = _font(56, True)
         self.font_lg = _font(40, True)
@@ -89,6 +99,8 @@ class Game:
         self.font_sm = _font(20, True)
         self.font_tiny = _font(16)
         self.font_cell = _font(30, True)
+        self.font_ascii = _font(15, True)
+        self.font_doodle = _font(16)
 
         self.state = TITLE_ST
         self.mode_index = 0
@@ -145,14 +157,28 @@ class Game:
         self.state = INTRO_ST
 
 
-    def _make_screen(self, fullscreen: bool = False):
-        flags = pygame.RESIZABLE
+    def _make_screen(self, fullscreen: bool = True):
+        """16:9 logical frame. Prefer fullscreen + SCALED; windowed if that fails."""
+        logical = (WINDOW_W, WINDOW_H)
+        attempts: list[int] = []
         if fullscreen:
-            flags = pygame.FULLSCREEN
-        try:
-            return pygame.display.set_mode((WINDOW_W, WINDOW_H), pygame.SCALED | flags)
-        except pygame.error:
-            return pygame.display.set_mode((WINDOW_W, WINDOW_H), flags)
+            attempts.extend((pygame.FULLSCREEN | pygame.SCALED, pygame.FULLSCREEN))
+        attempts.extend((pygame.SCALED | pygame.RESIZABLE, pygame.RESIZABLE, 0))
+        last_error: pygame.error | None = None
+        for flags in attempts:
+            try:
+                surface = pygame.display.set_mode(logical, flags)
+                self.fullscreen = bool(flags & pygame.FULLSCREEN)
+                return surface
+            except pygame.error as exc:
+                last_error = exc
+        if last_error is not None:
+            surface = pygame.display.set_mode(logical)
+            self.fullscreen = False
+            return surface
+        surface = pygame.display.set_mode(logical)
+        self.fullscreen = False
+        return surface
 
     def run(self) -> None:
         while self.running:
@@ -196,6 +222,8 @@ class Game:
         if self.state == TITLE_ST:
             if key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.state = MODE_ST
+            elif key == pygame.K_ESCAPE:
+                self.running = False
             return
         if self.state == MODE_ST:
             if key in (pygame.K_UP, pygame.K_w, pygame.K_i):
@@ -474,7 +502,7 @@ class Game:
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
-        hint = "ARROWS/WASD/IJKL move   SPACE munch   ESC pause   M mute   F11 fullscreen"
+        hint = "ARROWS/WASD/IJKL move   SPACE munch   ESC pause   M mute   F11 window"
         draw_outlined_text(
             self.screen,
             hint,
@@ -519,52 +547,45 @@ class Game:
         veil.fill((0, 0, 0, alpha))
         self.screen.blit(veil, (0, 0))
 
+    def _draw_ascii_block(
+        self,
+        lines: tuple[str, ...],
+        font: pygame.font.Font,
+        color: tuple[int, int, int],
+        center_x: int,
+        top_y: int,
+        outlined: bool = False,
+        line_gap: int = 1,
+    ) -> int:
+        line_h = font.get_height() + line_gap
+        for i, line in enumerate(lines):
+            y = top_y + i * line_h
+            if outlined:
+                draw_outlined_text(self.screen, line, font, color, (center_x, y))
+            else:
+                img = font.render(line, True, color)
+                self.screen.blit(img, img.get_rect(center=(center_x, y)))
+        return top_y + len(lines) * line_h
+
     def _draw_title(self) -> None:
-        draw_outlined_text(self.screen, "OMUNCH", self.font_xl, GOLD, (WINDOW_W // 2, 130))
-        draw_outlined_text(
-            self.screen,
-            "A math arcade for grades 2–5",
-            self.font_sm,
-            CREAM,
-            (WINDOW_W // 2, 200),
-        )
-        draw_outlined_text(
-            self.screen,
-            "Munch every number that matches the rule.",
-            self.font_sm,
-            WHITE,
-            (WINDOW_W // 2, 255),
-        )
-        draw_outlined_text(
-            self.screen,
-            "Wrong munches and Troggles cost a life.",
-            self.font_sm,
-            WHITE,
-            (WINDOW_W // 2, 290),
-        )
+        cx = WINDOW_W // 2
+        y = self._draw_ascii_block(TITLE_BANNER, self.font_ascii, GOLD, cx, 58, outlined=True)
+        y = self._draw_ascii_block(TITLE_DOODLE, self.font_doodle, CREAM, cx, y + 10)
+        draw_outlined_text(self.screen, TAGLINE, self.font_sm, CREAM, (cx, y + 18))
+        draw_outlined_text(self.screen, BLURB_A, self.font_sm, WHITE, (cx, y + 48))
+        draw_outlined_text(self.screen, BLURB_B, self.font_sm, WHITE, (cx, y + 76))
         pulse = 180 + int(40 * abs((self.anim * 2) % 2 - 1))
-        draw_outlined_text(
-            self.screen,
-            "Press ENTER or SPACE",
-            self.font_md,
-            (pulse, pulse, 80),
-            (WINDOW_W // 2, 360),
-        )
+        draw_outlined_text(self.screen, START_HINT, self.font_md, (pulse, pulse, 80), (cx, y + 126))
         m = muncher_surface(int(self.anim * 6), 1, int(self.anim * 2) % 4 == 0, False)
-        self.screen.blit(m, m.get_rect(center=(WINDOW_W // 2, 450)))
+        self.screen.blit(m, m.get_rect(center=(cx, y + 196)))
         kinds = ("wander", "chase", "fire", "exploder", "hunter")
         frame = int(self.anim * 5)
         for i, kind in enumerate(kinds):
             sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
-            x = 160 + i * 160
-            self.screen.blit(sprite, sprite.get_rect(center=(x, 560)))
-        draw_outlined_text(
-            self.screen,
-            "M mute   F11 fullscreen   Q quit",
-            self.font_tiny,
-            CREAM,
-            (WINDOW_W // 2, 680),
-        )
+            x = cx + (i - 2) * 180
+            self.screen.blit(sprite, sprite.get_rect(center=(x, y + 286)))
+        draw_outlined_text(self.screen, LICENSE_LINE, self.font_tiny, CREAM, (cx, WINDOW_H - 48))
+        draw_outlined_text(self.screen, CONTROLS_HINT, self.font_tiny, CREAM, (cx, WINDOW_H - 24))
 
     def _draw_modes(self) -> None:
         draw_outlined_text(self.screen, "CHOOSE A MODE", self.font_lg, GOLD, (WINDOW_W // 2, 90))

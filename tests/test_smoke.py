@@ -14,13 +14,13 @@ class PygameSmokeTests(unittest.TestCase):
             raise unittest.SkipTest("pygame is not installed") from exc
         pygame.mixer.pre_init(22050, -16, 1, 512)
         pygame.init()
-        from omunch.app import Game
+        from omunchy.app import Game
 
         cls.Game = Game
         cls.pygame = pygame
 
     def test_boot_and_draw_key_screens(self) -> None:
-        from omunch.app import (
+        from omunchy.app import (
             CELEBRATE_ST,
             CLEAR_ST,
             INTRO_ST,
@@ -30,6 +30,16 @@ class PygameSmokeTests(unittest.TestCase):
         )
 
         game = self.Game()
+        self.assertEqual(game.screen.get_size(), (1280, 720))
+        from omunchy.constants import TITLE
+
+        self.assertEqual(TITLE, "Omunchy")
+        game._draw()
+        game._keydown(self.pygame.K_F11)
+        self.assertIsNotNone(game.screen)
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertFalse(game.running)
+        game.running = True
         self.assertTrue(game.audio.muted is False)
         # Mixer may be dummy, but shipped cues should still load.
         self.assertIn("correct", game.audio._sounds)

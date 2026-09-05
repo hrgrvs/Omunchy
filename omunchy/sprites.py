@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pygame
 
-from omunch.constants import (
+from omunchy.constants import (
     CELL_H,
     CELL_W,
     CREAM,
