@@ -84,8 +84,15 @@ class Muncher(Actor):
         self.iframe_timer = max(0.0, self.iframe_timer - dt)
         self.hop_timer = max(0.0, self.hop_timer - dt)
 
-    def try_step(self, dr: int, dc: int, rows: int = MAX_ROWS, cols: int = MAX_COLS) -> bool:
-        if not self.can_move():
+    def try_step(
+        self,
+        dr: int,
+        dc: int,
+        rows: int = MAX_ROWS,
+        cols: int = MAX_COLS,
+        ignore_chomp: bool = False,
+    ) -> bool:
+        if not ignore_chomp and not self.can_move():
             return False
         nr, nc = self.row + dr, self.col + dc
         if not (0 <= nr < rows and 0 <= nc < cols):

@@ -93,7 +93,7 @@ VIOLET = (120, 88, 255)
 def _build_catalog() -> tuple[Wearable, ...]:
     items: list[Wearable] = []
 
-    # Capes — long / short / star / striped shapes × colors.
+    # Capes — long / royal / star / striped / bat shapes × colors.
     capes = (
         ("ruby", "Ruby Cape", 0, RED, CRIMSON),
         ("sky", "Sky Cape", 0, BLUE, SKY),
@@ -102,7 +102,7 @@ def _build_catalog() -> tuple[Wearable, ...]:
         ("sunset", "Sunset Cape", 1, ORANGE, PINK),
         ("night", "Night Cape", 1, NAVY, SILVER),
         ("star", "Star Cape", 2, NAVY, GOLD),
-        ("rainbow", "Rainbow Cape", 2, PINK, CYAN),
+        ("bat", "Bat Cape", 4, BLACK, PURPLE),
         ("mint", "Mint Cape", 2, MINT, TEAL),
         ("gold", "Gold Cape", 3, GOLD, AMBER),
         ("stripe-red", "Candy Cape", 3, RED, WHITE),
@@ -311,6 +311,24 @@ def draw_cape(src, item: Wearable, frame: int) -> None:
         pygame.draw.rect(src, a, (2, 10, 1, 1))
         pygame.draw.rect(src, a, (13, 11, 1, 1))
         pygame.draw.rect(src, a, (1, 13, 1, 1))
+    elif v == 4:  # bat wings — pointed tips, scalloped hem, rib accents
+        pygame.draw.rect(src, a, (4, 6, 8, 1))
+        pygame.draw.rect(src, c, (0 + sway, 7, 4, 4))
+        pygame.draw.rect(src, c, (0 + sway, 6, 3, 1))
+        pygame.draw.rect(src, c, (0 + sway, 5, 2, 1))
+        pygame.draw.rect(src, c, (0 + sway, 11, 1, 2))
+        pygame.draw.rect(src, c, (2 + sway, 11, 1, 2))
+        pygame.draw.rect(src, c, (1 + sway, 11, 1, 1))
+        pygame.draw.rect(src, a, (1 + sway, 8, 1, 3))
+        pygame.draw.rect(src, a, (3 + sway, 8, 1, 2))
+        pygame.draw.rect(src, c, (12 - sway, 7, 4, 4))
+        pygame.draw.rect(src, c, (13 - sway, 6, 3, 1))
+        pygame.draw.rect(src, c, (14 - sway, 5, 2, 1))
+        pygame.draw.rect(src, c, (15 - sway, 11, 1, 2))
+        pygame.draw.rect(src, c, (13 - sway, 11, 1, 2))
+        pygame.draw.rect(src, c, (14 - sway, 11, 1, 1))
+        pygame.draw.rect(src, a, (14 - sway, 8, 1, 3))
+        pygame.draw.rect(src, a, (12 - sway, 8, 1, 2))
     else:  # striped
         pygame.draw.rect(src, c, (1 + sway, 7, 3, 8))
         pygame.draw.rect(src, a, (1 + sway, 9, 3, 2))

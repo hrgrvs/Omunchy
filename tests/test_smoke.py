@@ -66,7 +66,11 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertEqual(len(game.troggles), 1)
         self.assertEqual(game.troggles[0].kind, "wander")
 
-        game.state = PLAY_ST
+        game.state = INTRO_ST
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, PAUSE_ST)
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, PLAY_ST)
         game._keydown(self.pygame.K_ESCAPE)
         self.assertEqual(game.state, PAUSE_ST)
         game.pause_index = 1

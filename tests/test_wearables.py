@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from omunchy.sprites import eat_label_transform
@@ -6,6 +7,7 @@ from omunchy.wearables import (
     CATEGORIES,
     BY_ID,
     Outfit,
+    draw_cape,
     is_reward_level,
     offer_wearables,
 )
@@ -55,6 +57,55 @@ class WearableCatalogTests(unittest.TestCase):
         self.assertFalse(is_reward_level(1))
         self.assertFalse(is_reward_level(2))
         self.assertFalse(is_reward_level(4))
+
+    def test_bat_cape_replaces_rainbow_cape(self) -> None:
+        self.assertNotIn("cape-rainbow", BY_ID)
+        self.assertNotIn("Rainbow Cape", {item.name for item in CATALOG})
+        bat = BY_ID["cape-bat"]
+        self.assertEqual(bat.name, "Bat Cape")
+        self.assertEqual(bat.category, "cape")
+        self.assertEqual(bat.slot, "cape")
+        self.assertEqual(bat.variant, 4)
+        self.assertEqual(bat.primary, (28, 28, 32))
+        self.assertEqual(bat.accent, (164, 80, 220))
+        outfit = Outfit()
+        outfit.wear(bat)
+        self.assertEqual(outfit.slots, {"cape": "cape-bat"})
+        outfit.wear(BY_ID["cape-ruby"])
+        self.assertEqual(outfit.slots, {"cape": "cape-ruby"})
+        self.assertEqual(len(outfit.slots), 1)
+
+
+class BatCapeDrawTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+        try:
+            import pygame
+        except ImportError as exc:  # pragma: no cover
+            raise unittest.SkipTest("pygame is not installed") from exc
+        pygame.display.init()
+        cls.pygame = pygame
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.pygame.display.quit()
+
+    def test_bat_cape_pixels_are_dark_not_rainbow(self) -> None:
+        src = self.pygame.Surface((16, 16), self.pygame.SRCALPHA)
+        draw_cape(src, BY_ID["cape-bat"], frame=0)
+        pixels = [
+            src.get_at((x, y))[:3]
+            for x in range(16)
+            for y in range(16)
+            if src.get_at((x, y))[3] > 0
+        ]
+        self.assertGreater(len(pixels), 10)
+        self.assertIn((28, 28, 32), pixels)
+        self.assertIn((164, 80, 220), pixels)
+        self.assertNotIn((236, 120, 180), pixels)
+        self.assertNotIn((64, 212, 212), pixels)
 
 
 class EatMotionTests(unittest.TestCase):

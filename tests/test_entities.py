@@ -26,6 +26,14 @@ class BoundsTests(unittest.TestCase):
         self.assertFalse(muncher.try_step(1, 0, 3, 4))
         self.assertFalse(muncher.try_step(0, 1, 3, 4))
 
+    def test_chomp_blocks_default_step_but_ignore_chomp_still_moves(self) -> None:
+        muncher = Muncher(row=1, col=1)
+        muncher.chomp_timer = 0.4
+        self.assertFalse(muncher.try_step(0, 1, 4, 5))
+        self.assertEqual(muncher.pos, (1, 1))
+        self.assertTrue(muncher.try_step(0, 1, 4, 5, ignore_chomp=True))
+        self.assertEqual(muncher.pos, (1, 2))
+
     def test_troggle_wander_respects_bounds(self) -> None:
         rng = random.Random(0)
         t = Troggle(row=0, col=0, kind="wander", heading=(-1, 0), interval=0.01)
