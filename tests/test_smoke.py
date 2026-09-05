@@ -21,12 +21,15 @@ class PygameSmokeTests(unittest.TestCase):
 
     def test_boot_and_draw_key_screens(self) -> None:
         from omunchy.app import (
+            BESTIARY_ST,
             CELEBRATE_ST,
             CLEAR_ST,
             INTRO_ST,
             MODE_ST,
             OVER_ST,
+            PAUSE_ST,
             PLAY_ST,
+            TITLE_ST,
             WARDROBE_ST,
         )
 
@@ -38,6 +41,11 @@ class PygameSmokeTests(unittest.TestCase):
         game._draw()
         game.anim = 1.8
         game._draw()
+        game._keydown(self.pygame.K_t)
+        self.assertEqual(game.state, BESTIARY_ST)
+        game._draw()
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, TITLE_ST)
         game._keydown(self.pygame.K_F11)
         self.assertIsNotNone(game.screen)
         game._keydown(self.pygame.K_ESCAPE)
@@ -59,6 +67,16 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertEqual(game.troggles[0].kind, "wander")
 
         game.state = PLAY_ST
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, PAUSE_ST)
+        game.pause_index = 1
+        game._keydown(self.pygame.K_RETURN)
+        self.assertEqual(game.state, BESTIARY_ST)
+        game._draw()
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, PAUSE_ST)
+        game._keydown(self.pygame.K_ESCAPE)
+        self.assertEqual(game.state, PLAY_ST)
         game._munch()
         self.assertIsNotNone(game.eat_fx)
         game._draw()

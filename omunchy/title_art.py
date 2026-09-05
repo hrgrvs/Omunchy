@@ -21,7 +21,7 @@ TAGLINE = "A math arcade for grades 2–5"
 BLURB_A = "Munch every number that matches the rule."
 BLURB_B = "Wrong munches and Troggles cost a life."
 START_HINT = "Press ENTER or SPACE"
-CONTROLS_HINT = "Esc / Q quit    F11 window    M mute"
+CONTROLS_HINT = "←→ menu    Enter play    T Troggles    Esc / Q quit    F11    M mute"
 LICENSE_LINE = "MIT License  ·  Copyright Damon Hargraves"
 
 # 7×7 block glyphs — chunky arcade letters that stay readable on 16:9.

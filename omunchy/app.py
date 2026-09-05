@@ -76,13 +76,13 @@ from omunchy.title_art import (
     BLURB_B,
     CONTROLS_HINT,
     LICENSE_LINE,
-    START_HINT,
     TAGLINE,
     draw_title_word,
 )
+from omunchy.bestiary import PAUSE_MENU, TITLE_MENU, TROGGLE_GUIDE
 from omunchy.wearables import Outfit, Wearable, offer_wearables
 
-TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, WARDROBE_ST, OVER_ST = range(9)
+TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, WARDROBE_ST, BESTIARY_ST, OVER_ST = range(10)
 
 
 @dataclass
@@ -156,6 +156,9 @@ class Game:
         self.eat_fx: EatFx | None = None
         self.wear_choices: list[Wearable] = []
         self.wear_index = 0
+        self.title_index = 0
+        self.pause_index = 0
+        self.bestiary_back = TITLE_ST
 
         self.audio.play("title")
         self.audio.play_bg()
@@ -260,8 +263,17 @@ class Game:
             return
 
         if self.state == TITLE_ST:
-            if key in (pygame.K_RETURN, pygame.K_SPACE):
-                self.state = MODE_ST
+            if key in (pygame.K_LEFT, pygame.K_a, pygame.K_j, pygame.K_UP, pygame.K_w, pygame.K_i):
+                self.title_index = (self.title_index - 1) % len(TITLE_MENU)
+            elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l, pygame.K_DOWN, pygame.K_s, pygame.K_k):
+                self.title_index = (self.title_index + 1) % len(TITLE_MENU)
+            elif key == pygame.K_t:
+                self._open_bestiary(TITLE_ST)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                if TITLE_MENU[self.title_index] == "Troggles":
+                    self._open_bestiary(TITLE_ST)
+                else:
+                    self.state = MODE_ST
             elif key == pygame.K_ESCAPE:
                 self.running = False
             return
@@ -280,10 +292,12 @@ class Game:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
                 self.state = PLAY_ST
             elif key == pygame.K_ESCAPE:
+                self.pause_index = 0
                 self.state = PAUSE_ST
             return
         if self.state == PLAY_ST:
             if key == pygame.K_ESCAPE:
+                self.pause_index = 0
                 self.state = PAUSE_ST
                 return
             if key in (pygame.K_SPACE,):
@@ -292,8 +306,20 @@ class Game:
             self._try_move_key(key)
             return
         if self.state == PAUSE_ST:
-            if key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE):
+            if key in (pygame.K_UP, pygame.K_w, pygame.K_i):
+                self.pause_index = (self.pause_index - 1) % len(PAUSE_MENU)
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_k):
+                self.pause_index = (self.pause_index + 1) % len(PAUSE_MENU)
+            elif key == pygame.K_t:
+                self._open_bestiary(PAUSE_ST)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                self._pause_confirm()
+            elif key == pygame.K_ESCAPE:
                 self.state = PLAY_ST
+            return
+        if self.state == BESTIARY_ST:
+            if key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE, pygame.K_t, pygame.K_q):
+                self._close_bestiary()
             return
         if self.state == CLEAR_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -491,6 +517,8 @@ class Game:
             self._draw_modes()
         elif self.state == WARDROBE_ST:
             self._draw_wardrobe()
+        elif self.state == BESTIARY_ST:
+            self._draw_bestiary()
         elif self.state in (INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST):
             self._draw_playfield()
             if self.state == INTRO_ST:
@@ -670,8 +698,14 @@ class Game:
         draw_outlined_text(self.screen, TAGLINE, self.font_sm, CREAM, (cx, y + 28))
         draw_outlined_text(self.screen, BLURB_A, self.font_sm, WHITE, (cx, y + 62))
         draw_outlined_text(self.screen, BLURB_B, self.font_sm, WHITE, (cx, y + 90))
-        pulse = 180 + int(40 * abs((self.anim * 2) % 2 - 1))
-        draw_outlined_text(self.screen, START_HINT, self.font_md, (pulse, pulse, 80), (cx, y + 140))
+        for i, label in enumerate(TITLE_MENU):
+            selected = i == self.title_index
+            px = cx - 140 + i * 280
+            box = pygame.Rect(px - 110, y + 118, 220, 48)
+            pygame.draw.rect(self.screen, (20, 80, 50) if selected else (10, 40, 28), box, border_radius=8)
+            pygame.draw.rect(self.screen, CELL_HL if selected else CELL_BORDER, box, 2, border_radius=8)
+            color = YELLOW if selected else CREAM
+            draw_outlined_text(self.screen, label, self.font_md, color, (px, y + 142))
         m = muncher_surface(int(self.anim * 6), 1, int(self.anim * 2) % 4 == 0, False)
         self.screen.blit(m, m.get_rect(center=(cx, y + 210)))
         kinds = ("wander", "chase", "fire", "exploder", "hunter")
@@ -739,15 +773,30 @@ class Game:
 
     def _draw_pause(self) -> None:
         self._dim()
-        draw_outlined_text(self.screen, "PAUSED", self.font_xl, GOLD, (WINDOW_W // 2, 300))
+        draw_outlined_text(self.screen, "PAUSED", self.font_xl, GOLD, (WINDOW_W // 2, 200))
         mute = "Sound: muted" if self.audio.muted else "Sound: on"
-        draw_outlined_text(self.screen, mute, self.font_sm, CREAM, (WINDOW_W // 2, 380))
+        draw_outlined_text(self.screen, mute, self.font_tiny, CREAM, (WINDOW_W // 2, 258))
+        for i, label in enumerate(PAUSE_MENU):
+            y = 320 + i * 64
+            selected = i == self.pause_index
+            box = pygame.Rect(WINDOW_W // 2 - 180, y - 24, 360, 50)
+            pygame.draw.rect(self.screen, (20, 80, 50) if selected else (10, 40, 28), box, border_radius=8)
+            pygame.draw.rect(self.screen, CELL_HL if selected else CELL_BORDER, box, 2, border_radius=8)
+            if selected:
+                draw_outlined_text(self.screen, "▶", self.font_md, GOLD, (WINDOW_W // 2 - 150, y))
+            draw_outlined_text(
+                self.screen,
+                label,
+                self.font_md,
+                YELLOW if selected else CREAM,
+                (WINDOW_W // 2, y),
+            )
         draw_outlined_text(
             self.screen,
-            "ESC / SPACE resume     M mute     Q title",
-            self.font_sm,
+            "↑↓ select    ENTER    ESC resume    T Troggles    Q title",
+            self.font_tiny,
             WHITE,
-            (WINDOW_W // 2, 450),
+            (WINDOW_W // 2, 540),
         )
 
     def _draw_clear(self) -> None:
@@ -791,6 +840,48 @@ class Game:
             return
         self.level += 1
         self._open_wardrobe()
+
+    def _open_bestiary(self, back: int) -> None:
+        self.bestiary_back = back
+        self.state = BESTIARY_ST
+
+    def _close_bestiary(self) -> None:
+        self.state = self.bestiary_back
+        if self.state == TITLE_ST:
+            self.audio.play("title")
+
+    def _pause_confirm(self) -> None:
+        choice = PAUSE_MENU[self.pause_index]
+        if choice == "Troggles":
+            self._open_bestiary(PAUSE_ST)
+        elif choice == "Title":
+            self.state = TITLE_ST
+            self.audio.play("title")
+        else:
+            self.state = PLAY_ST
+
+    def _draw_bestiary(self) -> None:
+        cx = WINDOW_W // 2
+        draw_outlined_text(self.screen, "TROGGLES", self.font_lg, GOLD, (cx, 48))
+        draw_outlined_text(
+            self.screen,
+            "Meet the five Troggle types. They unlock as you level up.",
+            self.font_tiny,
+            CREAM,
+            (cx, 88),
+        )
+        frame = int(self.anim * 6)
+        for i, (kind, name, blurb) in enumerate(TROGGLE_GUIDE):
+            y = 128 + i * 108
+            box = pygame.Rect(80, y, WINDOW_W - 160, 98)
+            pygame.draw.rect(self.screen, (10, 40, 28), box, border_radius=10)
+            pygame.draw.rect(self.screen, CELL_BORDER, box, 2, border_radius=10)
+            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
+            self.screen.blit(sprite, sprite.get_rect(center=(150, y + 49)))
+            draw_outlined_text(self.screen, name, self.font_md, YELLOW, (430, y + 32))
+            draw_outlined_text(self.screen, blurb, self.font_sm, WHITE, (430, y + 68))
+        back = "ESC back to pause" if self.bestiary_back == PAUSE_ST else "ESC back to title"
+        draw_outlined_text(self.screen, f"{back}    ENTER / T close", self.font_tiny, CREAM, (cx, WINDOW_H - 28))
 
     def _open_wardrobe(self) -> None:
         """Short list of wearables after a celebration / every ~3 levels."""
