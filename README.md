@@ -4,26 +4,36 @@ Math arcade for grades 2–5. Munch the numbers that match the rule; dodge Trogg
 
 ## Install on Omarchy
 
-**Option A — simplest (recommended)**
+**1. Install the tools** (fixes `command not found`):
 
 ```bash
 sudo pacman -S --needed git python python-pygame
+```
+
+**2. Clone and run:**
+
+```bash
 git clone https://github.com/hrgrvs/Omunch.git
 cd Omunch
 python -m omunch
 ```
 
-**Option B — one script (venv if needed)**
+Next time:
 
 ```bash
-git clone https://github.com/hrgrvs/Omunch.git
-cd Omunch
+cd ~/Omunch
+python -m omunch
+```
+
+(If you cloned somewhere else, `cd` to that folder instead.)
+
+### Optional: `./play`
+
+```bash
 ./play
 ```
 
-`./play` prints what it’s doing. First run can take a minute while pygame installs.
-
-Later: `cd ~/Omunch && ./play` (or `python -m omunch` if you used Option A).
+Uses system pygame when available, otherwise sets up a venv. Prefer `python -m omunch` after the pacman install above.
 
 ## Controls
 
