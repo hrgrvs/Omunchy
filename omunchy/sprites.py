@@ -22,6 +22,8 @@ from omunchy.constants import (
     YELLOW,
 )
 
+from omunchy.wearables import Outfit, paint_outfit
+
 _CACHE: dict[tuple, pygame.Surface] = {}
 
 
@@ -29,8 +31,15 @@ def _scale(surface: pygame.Surface, size: int) -> pygame.Surface:
     return pygame.transform.scale(surface, (size, size))
 
 
-def muncher_surface(frame: int, facing_x: int, chomping: bool, flash: bool) -> pygame.Surface:
-    key = ("muncher", frame, facing_x, chomping, flash)
+def muncher_surface(
+    frame: int,
+    facing_x: int,
+    chomping: bool,
+    flash: bool,
+    outfit: Outfit | None = None,
+) -> pygame.Surface:
+    wear_key = outfit.cache_key() if outfit is not None else ()
+    key = ("muncher", frame, facing_x, chomping, flash, wear_key)
     cached = _CACHE.get(key)
     if cached is not None:
         return cached
@@ -38,6 +47,7 @@ def muncher_surface(frame: int, facing_x: int, chomping: bool, flash: bool) -> p
     src = pygame.Surface((16, 16), pygame.SRCALPHA)
     body = GOLD if not flash else WHITE
     outline = (168, 120, 16) if not flash else (200, 200, 200)
+    paint_outfit(src, outfit, frame, facing_x, chomping, layer="back")
     pygame.draw.ellipse(src, outline, (1, 2, 14, 11))
     pygame.draw.ellipse(src, body, (2, 3, 12, 9))
 
@@ -47,10 +57,12 @@ def muncher_surface(frame: int, facing_x: int, chomping: bool, flash: bool) -> p
     pygame.draw.rect(src, (20, 20, 20), (5, 5, 2, 2))
     pygame.draw.rect(src, (20, 20, 20), (10, 5, 2, 2))
 
-    # Mouth — opens on chomp, faces movement
+    # Mouth — big chomp so the number can disappear into the bite.
     if chomping:
-        pygame.draw.rect(src, (40, 20, 10), (5, 8, 6, 4))
-        pygame.draw.rect(src, ORANGE, (6, 9, 4, 2))
+        pygame.draw.rect(src, (40, 20, 10), (4, 7, 8, 6))
+        pygame.draw.rect(src, ORANGE, (5, 8, 6, 3))
+        pygame.draw.rect(src, WHITE, (5, 8, 2, 1))
+        pygame.draw.rect(src, WHITE, (9, 8, 2, 1))
     else:
         pygame.draw.rect(src, (40, 20, 10), (5, 9, 6, 2))
 
@@ -65,6 +77,8 @@ def muncher_surface(frame: int, facing_x: int, chomping: bool, flash: bool) -> p
         pygame.draw.rect(src, outline, (9, 13, 3, 3))
         pygame.draw.rect(src, body, (4, 12, 3, 2))
         pygame.draw.rect(src, body, (9, 13, 3, 2))
+
+    paint_outfit(src, outfit, frame, facing_x, chomping, layer="front")
 
     if facing_x < 0:
         src = pygame.transform.flip(src, True, False)
@@ -227,6 +241,20 @@ def fire_surface(frame: int) -> pygame.Surface:
 
 def cell_rect(row: int, col: int, grid_left: int, grid_top: int) -> pygame.Rect:
     return pygame.Rect(grid_left + col * CELL_W, grid_top + row * CELL_H, CELL_W, CELL_H)
+
+
+def eat_label_transform(progress: float, correct: bool) -> tuple[float, float, float, float]:
+    """Number motion while being eaten: (dx, dy, scale, alpha 0–1)."""
+    t = max(0.0, min(1.0, progress))
+    if correct:
+        # Dive into the mouth, squash, fade.
+        return (0.0, 10.0 + 18.0 * t, max(0.12, 1.0 - 0.88 * t), 1.0 - t)
+    if t < 0.45:
+        u = t / 0.45
+        return (0.0, 8.0 * u, 1.0 - 0.18 * u, 1.0)
+    # Rejected chomp: bounce back.
+    u = (t - 0.45) / 0.55
+    return ((-1.0 + 2.0 * (u % 0.2)) * 6.0, 8.0 * (1.0 - u) - 6.0 * u, 0.82 + 0.18 * u, 1.0)
 
 
 def draw_outlined_text(

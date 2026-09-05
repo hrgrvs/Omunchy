@@ -405,8 +405,8 @@ def spawn_troggles(
         interval = troggle_interval_for(level, kind)
         t = Troggle(row=row, col=col, kind=kind, interval=interval)
         t.heading = _inward_heading(row, col, rows, cols)
-        t.move_timer = 1.05 + i * 0.30
-        t.fire_cooldown = 2.2 + i * 0.45
+        t.move_timer = 1.15 + i * 0.32
+        t.fire_cooldown = 2.4 + i * 0.50
         troggles.append(t)
     return troggles
 

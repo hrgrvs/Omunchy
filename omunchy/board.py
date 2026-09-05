@@ -1,6 +1,7 @@
 """Board generation: fair mix of correct and incorrect cells.
 
-The playfield starts small (3×4) and grows every two levels up to 6×8.
+The playfield starts at 4×5 and grows every two levels up to 6×8.
+When no RNG is passed, the layout is seeded from (rule.mode, level).
 """
 
 from __future__ import annotations
@@ -9,14 +10,15 @@ from dataclasses import dataclass, field
 import random
 
 from omunchy.constants import MAX_COLS, MAX_ROWS
+from omunchy.progress import stable_rng
 from omunchy.rules import Rule, factors_of, is_prime
 
 # (rows, cols) for levels 1–2, 3–4, 5–6, 7–8, then 9+ stays at full size.
 BOARD_STEPS: tuple[tuple[int, int], ...] = (
-    (3, 4),
     (4, 5),
     (5, 6),
     (5, 7),
+    (6, 7),
     (MAX_ROWS, MAX_COLS),
 )
 
@@ -165,8 +167,9 @@ def generate_board(
     rng: random.Random | None = None,
     rows: int | None = None,
     cols: int | None = None,
+    seed_key: str | None = None,
 ) -> Board:
-    rng = rng or random.Random()
+    rng = rng or stable_rng("board", seed_key or rule.mode, level)
     if rows is None or cols is None:
         rows, cols = board_size_for_level(level)
     correct_pool, wrong_pool = item_pools(rule, level)

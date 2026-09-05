@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import random
 import sys
 
@@ -20,6 +21,8 @@ from omunchy.constants import (
     CELL_HL,
     CREAM,
     CYAN,
+    EAT_CORRECT,
+    EAT_WRONG,
     EMBER,
     FLAME,
     FPS,
@@ -59,19 +62,49 @@ from omunchy.entities import (
 )
 from omunchy.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
 from omunchy.rules import Rule, rule_for
-from omunchy.sprites import cell_rect, draw_outlined_text, fire_surface, muncher_surface, troggle_surface
+from omunchy.progress import stable_rng
+from omunchy.sprites import (
+    cell_rect,
+    draw_outlined_text,
+    eat_label_transform,
+    fire_surface,
+    muncher_surface,
+    troggle_surface,
+)
 from omunchy.title_art import (
     BLURB_A,
     BLURB_B,
     CONTROLS_HINT,
     LICENSE_LINE,
-    START_HINT,
     TAGLINE,
-    TITLE_BANNER,
-    TITLE_DOODLE,
+    draw_title_word,
 )
+from omunchy.bestiary import PAUSE_MENU, TITLE_MENU, TROGGLE_GUIDE
+from omunchy.wearables import Outfit, Wearable, offer_wearables
 
-TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, OVER_ST = range(8)
+TITLE_ST, MODE_ST, INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST, WARDROBE_ST, BESTIARY_ST, OVER_ST = range(10)
+
+
+@dataclass
+class EatFx:
+    """In-progress chomp: the digit dives into the mouth (or bounces back)."""
+
+    label: str
+    row: int
+    col: int
+    correct: bool
+    age: float = 0.0
+    duration: float = EAT_CORRECT
+    pending_clear: bool = False
+    pending_life: bool = False
+
+    @property
+    def progress(self) -> float:
+        return 1.0 if self.duration <= 0 else min(1.0, self.age / self.duration)
+
+    @property
+    def done(self) -> bool:
+        return self.age >= self.duration
 
 
 def _font(size: int, bold: bool = False) -> pygame.font.Font:
@@ -99,8 +132,6 @@ class Game:
         self.font_sm = _font(20, True)
         self.font_tiny = _font(16)
         self.font_cell = _font(30, True)
-        self.font_ascii = _font(15, True)
-        self.font_doodle = _font(16)
 
         self.state = TITLE_ST
         self.mode_index = 0
@@ -121,6 +152,13 @@ class Game:
         self.confetti: list[int] = []
         self.anim = 0.0
         self.held: set[int] = set()
+        self.outfit = Outfit()
+        self.eat_fx: EatFx | None = None
+        self.wear_choices: list[Wearable] = []
+        self.wear_index = 0
+        self.title_index = 0
+        self.pause_index = 0
+        self.bestiary_back = TITLE_ST
 
         self.audio.play("title")
         self.audio.play_bg()
@@ -130,6 +168,8 @@ class Game:
         self.level = 1
         self.score = 0
         self.lives = START_LIVES
+        self.outfit = Outfit()
+        self.eat_fx = None
         self._begin_level()
 
     def _board_size(self) -> tuple[int, int]:
@@ -143,17 +183,20 @@ class Game:
 
     def _begin_level(self) -> None:
         self.rule = rule_for(self.selected_mode, self.level)
-        self.board = generate_board(self.rule, self.level, self.rng)
+        self.rng = stable_rng("play", self.selected_mode, self.level)
+        self.board = generate_board(self.rule, self.level, seed_key=self.selected_mode)
         rows, cols = self.board.rows, self.board.cols
+        spawn_rng = stable_rng("spawn", self.selected_mode, self.level)
         occupied: set[tuple[int, int]] = set()
-        pr, pc = safe_player_spawn(occupied, self.rng, rows, cols)
+        pr, pc = safe_player_spawn(occupied, spawn_rng, rows, cols)
         self.player = Muncher(row=pr, col=pc)
         occupied.add((pr, pc))
-        self.troggles = spawn_troggles(self.level, (pr, pc), self.rng, rows, cols)
+        self.troggles = spawn_troggles(self.level, (pr, pc), spawn_rng, rows, cols)
         self.move_cool = 0.0
         self.freeze = 0.35
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
+        self.eat_fx = None
         self.state = INTRO_ST
 
 
@@ -198,7 +241,7 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 # Celebrate skip
                 if self.state == CELEBRATE_ST and event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                    self._begin_level()
+                    self._open_wardrobe()
                     continue
                 self.held.add(event.key)
                 self._keydown(event.key)
@@ -220,8 +263,17 @@ class Game:
             return
 
         if self.state == TITLE_ST:
-            if key in (pygame.K_RETURN, pygame.K_SPACE):
-                self.state = MODE_ST
+            if key in (pygame.K_LEFT, pygame.K_a, pygame.K_j, pygame.K_UP, pygame.K_w, pygame.K_i):
+                self.title_index = (self.title_index - 1) % len(TITLE_MENU)
+            elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l, pygame.K_DOWN, pygame.K_s, pygame.K_k):
+                self.title_index = (self.title_index + 1) % len(TITLE_MENU)
+            elif key == pygame.K_t:
+                self._open_bestiary(TITLE_ST)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                if TITLE_MENU[self.title_index] == "Troggles":
+                    self._open_bestiary(TITLE_ST)
+                else:
+                    self.state = MODE_ST
             elif key == pygame.K_ESCAPE:
                 self.running = False
             return
@@ -240,10 +292,12 @@ class Game:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
                 self.state = PLAY_ST
             elif key == pygame.K_ESCAPE:
+                self.pause_index = 0
                 self.state = PAUSE_ST
             return
         if self.state == PLAY_ST:
             if key == pygame.K_ESCAPE:
+                self.pause_index = 0
                 self.state = PAUSE_ST
                 return
             if key in (pygame.K_SPACE,):
@@ -252,8 +306,20 @@ class Game:
             self._try_move_key(key)
             return
         if self.state == PAUSE_ST:
-            if key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE):
+            if key in (pygame.K_UP, pygame.K_w, pygame.K_i):
+                self.pause_index = (self.pause_index - 1) % len(PAUSE_MENU)
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_k):
+                self.pause_index = (self.pause_index + 1) % len(PAUSE_MENU)
+            elif key == pygame.K_t:
+                self._open_bestiary(PAUSE_ST)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                self._pause_confirm()
+            elif key == pygame.K_ESCAPE:
                 self.state = PLAY_ST
+            return
+        if self.state == BESTIARY_ST:
+            if key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE, pygame.K_t, pygame.K_q):
+                self._close_bestiary()
             return
         if self.state == CLEAR_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -261,7 +327,21 @@ class Game:
             return
         if self.state == CELEBRATE_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
-                self._begin_level()
+                self._open_wardrobe()
+            return
+        if self.state == WARDROBE_ST:
+            if key in (pygame.K_LEFT, pygame.K_a, pygame.K_j):
+                self.wear_index = (self.wear_index - 1) % max(1, len(self.wear_choices))
+            elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l):
+                self.wear_index = (self.wear_index + 1) % max(1, len(self.wear_choices))
+            elif key in (pygame.K_UP, pygame.K_w, pygame.K_i):
+                self.wear_index = (self.wear_index - 1) % max(1, len(self.wear_choices))
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_k):
+                self.wear_index = (self.wear_index + 1) % max(1, len(self.wear_choices))
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                self._apply_wear_choice(skip=False)
+            elif key == pygame.K_ESCAPE:
+                self._apply_wear_choice(skip=True)
             return
         if self.state == OVER_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -326,23 +406,52 @@ class Game:
             return
         if not self.player.can_move():
             return
+        if self.eat_fx is not None and not self.eat_fx.done:
+            return
         cell = self.board.cell(self.player.row, self.player.col)
         if cell.munched:
             return
-        self.player.chomp_timer = MUNCH_LOCK
-        if self.rule.is_correct(cell.value):
+        correct = self.rule.is_correct(cell.value)
+        duration = EAT_CORRECT if correct else EAT_WRONG
+        self.player.chomp_timer = max(MUNCH_LOCK, duration)
+        if correct:
             cell.munched = True
             self.score += 50 + self.level * 10
             self.audio.play("correct")
-            if self.board.remaining_correct() == 0:
-                self.score += 100 * self.level
-                self.best = max(self.best, self.score)
-                self.state = CLEAR_ST
-                self.banner_timer = 0.0
-                self.audio.play("level_clear")
+            pending_clear = self.board.remaining_correct() == 0
+            self.eat_fx = EatFx(
+                label=cell.label,
+                row=cell.row,
+                col=cell.col,
+                correct=True,
+                duration=duration,
+                pending_clear=pending_clear,
+            )
         else:
             self.audio.play("wrong")
             self.flash_wrong = 0.35
+            self.eat_fx = EatFx(
+                label=cell.label,
+                row=cell.row,
+                col=cell.col,
+                correct=False,
+                duration=duration,
+                pending_life=True,
+            )
+
+    def _finish_eat(self) -> None:
+        fx = self.eat_fx
+        self.eat_fx = None
+        if fx is None:
+            return
+        if fx.pending_clear:
+            self.score += 100 * self.level
+            self.best = max(self.best, self.score)
+            self.state = CLEAR_ST
+            self.banner_timer = 0.0
+            self.audio.play("level_clear")
+            return
+        if fx.pending_life:
             self._lose_life(from_troggle=False)
 
     def _lose_life(self, from_troggle: bool) -> None:
@@ -371,10 +480,16 @@ class Game:
             return
         if self.state == CELEBRATE_ST:
             if self.banner_timer >= CELEBRATE_SECONDS:
-                self._begin_level()
+                self._open_wardrobe()
             return
         if self.state != PLAY_ST:
             return
+        if self.eat_fx is not None:
+            self.eat_fx.age += dt
+            if self.eat_fx.done:
+                self._finish_eat()
+                if self.state != PLAY_ST:
+                    return
         self.player.tick(dt)
         self.move_cool = max(0.0, self.move_cool - dt)
         self.freeze = max(0.0, self.freeze - dt)
@@ -400,6 +515,10 @@ class Game:
             self._draw_title()
         elif self.state == MODE_ST:
             self._draw_modes()
+        elif self.state == WARDROBE_ST:
+            self._draw_wardrobe()
+        elif self.state == BESTIARY_ST:
+            self._draw_bestiary()
         elif self.state in (INTRO_ST, PLAY_ST, PAUSE_ST, CLEAR_ST, CELEBRATE_ST):
             self._draw_playfield()
             if self.state == INTRO_ST:
@@ -466,7 +585,12 @@ class Game:
                         fill = RED
                 pygame.draw.rect(self.screen, fill, rect.inflate(-4, -4), border_radius=6)
                 pygame.draw.rect(self.screen, CELL_BORDER, rect.inflate(-4, -4), 2, border_radius=6)
-                if not cell.munched:
+                eating_here = (
+                    self.eat_fx is not None
+                    and self.eat_fx.row == r
+                    and self.eat_fx.col == c
+                )
+                if not cell.munched and not eating_here:
                     draw_outlined_text(
                         self.screen,
                         cell.label,
@@ -485,14 +609,19 @@ class Game:
         show_player = not (self.player.invulnerable() and int(self.anim * 12) % 2 == 0)
         if show_player:
             hop = -6 if self.player.hop_timer > 0 else 0
+            chomping = self.player.chomp_timer > 0 or (
+                self.eat_fx is not None and not self.eat_fx.done
+            )
             sprite = muncher_surface(
                 frame,
                 self.player.facing[0],
-                self.player.chomp_timer > 0,
+                chomping,
                 self.player.invulnerable(),
+                self.outfit,
             )
             dest = sprite.get_rect(center=(pref.centerx, pref.centery + hop + 8))
             self.screen.blit(sprite, dest)
+        self._draw_eat_fx(grid_left, grid_top)
 
         for troggle in self.troggles:
             trect = cell_rect(troggle.row, troggle.col, grid_left, grid_top)
@@ -547,43 +676,44 @@ class Game:
         veil.fill((0, 0, 0, alpha))
         self.screen.blit(veil, (0, 0))
 
-    def _draw_ascii_block(
-        self,
-        lines: tuple[str, ...],
-        font: pygame.font.Font,
-        color: tuple[int, int, int],
-        center_x: int,
-        top_y: int,
-        outlined: bool = False,
-        line_gap: int = 1,
-    ) -> int:
-        line_h = font.get_height() + line_gap
-        for i, line in enumerate(lines):
-            y = top_y + i * line_h
-            if outlined:
-                draw_outlined_text(self.screen, line, font, color, (center_x, y))
-            else:
-                img = font.render(line, True, color)
-                self.screen.blit(img, img.get_rect(center=(center_x, y)))
-        return top_y + len(lines) * line_h
+    def _draw_eat_fx(self, grid_left: int, grid_top: int) -> None:
+        fx = self.eat_fx
+        if fx is None or fx.done:
+            return
+        rect = cell_rect(fx.row, fx.col, grid_left, grid_top)
+        dx, dy, scale, alpha = eat_label_transform(fx.progress, fx.correct)
+        color = GREEN if fx.correct else RED
+        img = self.font_cell.render(fx.label, True, color)
+        if scale != 1.0:
+            w = max(2, int(img.get_width() * scale))
+            h = max(2, int(img.get_height() * max(0.35, scale * (0.7 if fx.correct else 1.0))))
+            img = pygame.transform.scale(img, (w, h))
+        img.set_alpha(max(0, min(255, int(255 * alpha))))
+        dest = img.get_rect(center=(rect.centerx + int(dx), rect.centery + int(dy)))
+        self.screen.blit(img, dest)
 
     def _draw_title(self) -> None:
         cx = WINDOW_W // 2
-        y = self._draw_ascii_block(TITLE_BANNER, self.font_ascii, GOLD, cx, 58, outlined=True)
-        y = self._draw_ascii_block(TITLE_DOODLE, self.font_doodle, CREAM, cx, y + 10)
-        draw_outlined_text(self.screen, TAGLINE, self.font_sm, CREAM, (cx, y + 18))
-        draw_outlined_text(self.screen, BLURB_A, self.font_sm, WHITE, (cx, y + 48))
-        draw_outlined_text(self.screen, BLURB_B, self.font_sm, WHITE, (cx, y + 76))
-        pulse = 180 + int(40 * abs((self.anim * 2) % 2 - 1))
-        draw_outlined_text(self.screen, START_HINT, self.font_md, (pulse, pulse, 80), (cx, y + 126))
+        y = draw_title_word(self.screen, self.anim, cx, 64)
+        draw_outlined_text(self.screen, TAGLINE, self.font_sm, CREAM, (cx, y + 28))
+        draw_outlined_text(self.screen, BLURB_A, self.font_sm, WHITE, (cx, y + 62))
+        draw_outlined_text(self.screen, BLURB_B, self.font_sm, WHITE, (cx, y + 90))
+        for i, label in enumerate(TITLE_MENU):
+            selected = i == self.title_index
+            px = cx - 140 + i * 280
+            box = pygame.Rect(px - 110, y + 118, 220, 48)
+            pygame.draw.rect(self.screen, (20, 80, 50) if selected else (10, 40, 28), box, border_radius=8)
+            pygame.draw.rect(self.screen, CELL_HL if selected else CELL_BORDER, box, 2, border_radius=8)
+            color = YELLOW if selected else CREAM
+            draw_outlined_text(self.screen, label, self.font_md, color, (px, y + 142))
         m = muncher_surface(int(self.anim * 6), 1, int(self.anim * 2) % 4 == 0, False)
-        self.screen.blit(m, m.get_rect(center=(cx, y + 196)))
+        self.screen.blit(m, m.get_rect(center=(cx, y + 210)))
         kinds = ("wander", "chase", "fire", "exploder", "hunter")
         frame = int(self.anim * 5)
         for i, kind in enumerate(kinds):
             sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
             x = cx + (i - 2) * 180
-            self.screen.blit(sprite, sprite.get_rect(center=(x, y + 286)))
+            self.screen.blit(sprite, sprite.get_rect(center=(x, y + 300)))
         draw_outlined_text(self.screen, LICENSE_LINE, self.font_tiny, CREAM, (cx, WINDOW_H - 48))
         draw_outlined_text(self.screen, CONTROLS_HINT, self.font_tiny, CREAM, (cx, WINDOW_H - 24))
 
@@ -643,15 +773,30 @@ class Game:
 
     def _draw_pause(self) -> None:
         self._dim()
-        draw_outlined_text(self.screen, "PAUSED", self.font_xl, GOLD, (WINDOW_W // 2, 300))
+        draw_outlined_text(self.screen, "PAUSED", self.font_xl, GOLD, (WINDOW_W // 2, 200))
         mute = "Sound: muted" if self.audio.muted else "Sound: on"
-        draw_outlined_text(self.screen, mute, self.font_sm, CREAM, (WINDOW_W // 2, 380))
+        draw_outlined_text(self.screen, mute, self.font_tiny, CREAM, (WINDOW_W // 2, 258))
+        for i, label in enumerate(PAUSE_MENU):
+            y = 320 + i * 64
+            selected = i == self.pause_index
+            box = pygame.Rect(WINDOW_W // 2 - 180, y - 24, 360, 50)
+            pygame.draw.rect(self.screen, (20, 80, 50) if selected else (10, 40, 28), box, border_radius=8)
+            pygame.draw.rect(self.screen, CELL_HL if selected else CELL_BORDER, box, 2, border_radius=8)
+            if selected:
+                draw_outlined_text(self.screen, "▶", self.font_md, GOLD, (WINDOW_W // 2 - 150, y))
+            draw_outlined_text(
+                self.screen,
+                label,
+                self.font_md,
+                YELLOW if selected else CREAM,
+                (WINDOW_W // 2, y),
+            )
         draw_outlined_text(
             self.screen,
-            "ESC / SPACE resume     M mute     Q title",
-            self.font_sm,
+            "↑↓ select    ENTER    ESC resume    T Troggles    Q title",
+            self.font_tiny,
             WHITE,
-            (WINDOW_W // 2, 450),
+            (WINDOW_W // 2, 540),
         )
 
     def _draw_clear(self) -> None:
@@ -690,11 +835,139 @@ class Game:
         self.audio.play("celebrate")
 
     def _finish_celebrate(self) -> None:
-        """Leave celebration and start the next level."""
+        """Leave celebration (used by smoke tests) and open the wearable pick."""
         if self.state != CELEBRATE_ST:
             return
         self.level += 1
+        self._open_wardrobe()
+
+    def _open_bestiary(self, back: int) -> None:
+        self.bestiary_back = back
+        self.state = BESTIARY_ST
+
+    def _close_bestiary(self) -> None:
+        self.state = self.bestiary_back
+        if self.state == TITLE_ST:
+            self.audio.play("title")
+
+    def _pause_confirm(self) -> None:
+        choice = PAUSE_MENU[self.pause_index]
+        if choice == "Troggles":
+            self._open_bestiary(PAUSE_ST)
+        elif choice == "Title":
+            self.state = TITLE_ST
+            self.audio.play("title")
+        else:
+            self.state = PLAY_ST
+
+    def _draw_bestiary(self) -> None:
+        cx = WINDOW_W // 2
+        draw_outlined_text(self.screen, "TROGGLES", self.font_lg, GOLD, (cx, 48))
+        draw_outlined_text(
+            self.screen,
+            "Meet the five Troggle types. They unlock as you level up.",
+            self.font_tiny,
+            CREAM,
+            (cx, 88),
+        )
+        frame = int(self.anim * 6)
+        for i, (kind, name, blurb) in enumerate(TROGGLE_GUIDE):
+            y = 128 + i * 108
+            box = pygame.Rect(80, y, WINDOW_W - 160, 98)
+            pygame.draw.rect(self.screen, (10, 40, 28), box, border_radius=10)
+            pygame.draw.rect(self.screen, CELL_BORDER, box, 2, border_radius=10)
+            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
+            self.screen.blit(sprite, sprite.get_rect(center=(150, y + 49)))
+            draw_outlined_text(self.screen, name, self.font_md, YELLOW, (430, y + 32))
+            draw_outlined_text(self.screen, blurb, self.font_sm, WHITE, (430, y + 68))
+        back = "ESC back to pause" if self.bestiary_back == PAUSE_ST else "ESC back to title"
+        draw_outlined_text(self.screen, f"{back}    ENTER / T close", self.font_tiny, CREAM, (cx, WINDOW_H - 28))
+
+    def _open_wardrobe(self) -> None:
+        """Short list of wearables after a celebration / every ~3 levels."""
+        if self.state not in (CELEBRATE_ST, CLEAR_ST, WARDROBE_ST):
+            # Allow tests to jump here after bumping the level.
+            pass
+        choices = offer_wearables(
+            self.selected_mode,
+            self.level,
+            self.outfit.ids(),
+            frozenset(self.outfit.slots),
+        )
+        if not choices:
+            self._begin_level()
+            return
+        self.wear_choices = list(choices)
+        self.wear_index = 0
+        self.state = WARDROBE_ST
+
+    def _apply_wear_choice(self, skip: bool = False) -> None:
+        if not skip and self.wear_choices:
+            self.outfit.wear(self.wear_choices[self.wear_index])
         self._begin_level()
+
+    def _draw_wardrobe(self) -> None:
+        cx = WINDOW_W // 2
+        draw_outlined_text(self.screen, "NEW GEAR!", self.font_lg, GOLD, (cx, 70))
+        draw_outlined_text(
+            self.screen,
+            "Pick one thing to wear. One per spot — a new hat replaces the old hat.",
+            self.font_tiny,
+            CREAM,
+            (cx, 118),
+        )
+        n = max(1, len(self.wear_choices))
+        gap = min(260, 1080 // n)
+        start_x = cx - (n - 1) * gap // 2
+        for i, item in enumerate(self.wear_choices):
+            x = start_x + i * gap
+            selected = i == self.wear_index
+            box = pygame.Rect(x - 110, 170, 220, 340)
+            pygame.draw.rect(self.screen, (20, 80, 50) if selected else (10, 40, 28), box, border_radius=12)
+            pygame.draw.rect(
+                self.screen,
+                CELL_HL if selected else CELL_BORDER,
+                box,
+                3 if selected else 2,
+                border_radius=12,
+            )
+            preview = self.outfit.copy()
+            preview.wear(item)
+            sprite = muncher_surface(int(self.anim * 6), 1, False, False, preview)
+            self.screen.blit(sprite, sprite.get_rect(center=(x, 280)))
+            draw_outlined_text(self.screen, item.name, self.font_sm, WHITE if selected else CREAM, (x, 360))
+            draw_outlined_text(
+                self.screen,
+                item.category.replace("mustache", "stache"),
+                self.font_tiny,
+                GOLD if selected else CREAM,
+                (x, 392),
+            )
+            draw_outlined_text(
+                self.screen,
+                f"wears on {item.slot}",
+                self.font_tiny,
+                CREAM,
+                (x, 420),
+            )
+            if selected:
+                draw_outlined_text(self.screen, "▶", self.font_md, GOLD, (x, 455))
+        worn = ", ".join(w.name for w in self.outfit.resolve()) or "nothing yet"
+        draw_outlined_text(self.screen, f"Wearing: {worn}", self.font_tiny, CYAN, (cx, 540))
+        draw_outlined_text(
+            self.screen,
+            "←→ / IJKL pick    ENTER wear it    ESC skip",
+            self.font_sm,
+            WHITE,
+            (cx, 600),
+        )
+        draw_outlined_text(
+            self.screen,
+            "You can stack a hat, cape, glasses, mustache, cane, and shoes.",
+            self.font_tiny,
+            CREAM,
+            (cx, 640),
+        )
 
     def _draw_celebrate(self) -> None:
         overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
@@ -709,7 +982,7 @@ class Game:
             pygame.draw.rect(self.screen, c, (x, y, 6, 6))
         # bouncing muncher
         bounce = int(abs(__import__('math').sin(self.anim * 8)) * 18)
-        sprite = muncher_surface(int(self.anim * 10) % 2, 1, True, False)
+        sprite = muncher_surface(int(self.anim * 10) % 2, 1, True, False, self.outfit)
         rect = sprite.get_rect(center=(WINDOW_W // 2, WINDOW_H // 2 + 40 - bounce))
         self.screen.blit(sprite, rect)
         draw_outlined_text(self.screen, self.celebrate_banner, self.font_xl, GOLD, (WINDOW_W // 2, WINDOW_H // 2 - 60))
