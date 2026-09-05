@@ -7,23 +7,35 @@ WINDOW_H = 720
 FPS = 60
 TITLE = "Omunch"
 
-ROWS = 6
-COLS = 8
+# Full-size board (late levels). Early levels use a smaller grid that grows here.
+MAX_ROWS = 6
+MAX_COLS = 8
+ROWS = MAX_ROWS
+COLS = MAX_COLS
 CELL_W = 108
 CELL_H = 84
-GRID_W = COLS * CELL_W
-GRID_H = ROWS * CELL_H
+GRID_W = MAX_COLS * CELL_W
+GRID_H = MAX_ROWS * CELL_H
 HUD_H = 64
 RULE_H = 44
 GRID_TOP = HUD_H + RULE_H
 GRID_LEFT = (WINDOW_W - GRID_W) // 2
-BOTTOM_H = WINDOW_H - GRID_TOP - GRID_H
+HINT_H = 48
+BOTTOM_H = HINT_H
 
 START_LIVES = 3
 MOVE_DELAY = 0.15
 MUNCH_LOCK = 0.18
 HIT_IFRAMES = 1.6
 TROGGLE_FREEZE = 0.9
+
+# Fire-breath: wind-up, then one cell directly in front.
+FIRE_WINDUP = 0.40
+FIRE_DURATION = 0.70
+FIRE_COOLDOWN = 2.15
+
+# Exploder: 4-dir (cardinal) adjacency only — diagonal is safe for kids.
+EXPLODE_WINDUP = 0.55
 
 # Retro arcade palette
 BLACK = (0, 0, 0)
@@ -48,6 +60,11 @@ MAGENTA = (214, 72, 128)
 CYAN = (72, 196, 196)
 PINK = (236, 130, 170)
 SHADOW = (0, 0, 0)
+FLAME = (255, 168, 48)
+EMBER = (220, 72, 28)
+HUNTER = (36, 150, 132)
+HUNTER_DARK = (12, 72, 64)
+FUSE = (255, 220, 80)
 
 MODES = ("multiples", "factors", "primes", "equals", "mixed")
 MODE_LABELS = {
@@ -64,3 +81,13 @@ MODE_BLURBS = {
     "equals": "Munch expressions that equal the target.",
     "mixed": "Cycle through all four modes as you level up.",
 }
+
+
+def grid_geometry(rows: int, cols: int) -> tuple[int, int, int, int]:
+    """Centered (left, top, width, height) for the current board size."""
+    grid_w = cols * CELL_W
+    grid_h = rows * CELL_H
+    grid_left = (WINDOW_W - grid_w) // 2
+    available = WINDOW_H - HUD_H - RULE_H - HINT_H
+    grid_top = HUD_H + RULE_H + max(0, (available - grid_h) // 2)
+    return grid_left, grid_top, grid_w, grid_h

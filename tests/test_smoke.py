@@ -35,10 +35,15 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertIn("correct", game.audio._sounds)
         self.assertIn("celebrate", game.audio._sounds)
 
-        game.start_run("multiples")
-        self.assertEqual(game.state, INTRO_ST)
-        self.assertIsNotNone(game.board)
-        self.assertGreater(game.board.remaining_correct(), 0)
+        for mode in ("multiples", "factors", "primes", "equals", "mixed"):
+            game.start_run(mode)
+            self.assertEqual(game.state, INTRO_ST, msg=mode)
+            self.assertIsNotNone(game.board)
+            self.assertGreater(game.board.remaining_correct(), 0, msg=mode)
+            self.assertEqual((game.board.rows, game.board.cols), (3, 4), msg=mode)
+            self.assertTrue(game.board.in_bounds(game.player.row, game.player.col))
+        self.assertEqual(len(game.troggles), 1)
+        self.assertEqual(game.troggles[0].kind, "wander")
 
         game.state = PLAY_ST
         game._draw()
@@ -53,6 +58,13 @@ class PygameSmokeTests(unittest.TestCase):
         game._draw()
         game._finish_celebrate()
         self.assertEqual(game.level, 4)
+        self.assertIsNotNone(game.board)
+        self.assertEqual((game.board.rows, game.board.cols), (4, 5))
+        game.level = 10
+        game._begin_level()
+        self.assertEqual((game.board.rows, game.board.cols), (6, 8))
+        kinds = {t.kind for t in game.troggles}
+        self.assertGreaterEqual(len(kinds), 4)
         game.state = OVER_ST
         game._draw()
         game.audio.shutdown()

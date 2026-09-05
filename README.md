@@ -2,6 +2,14 @@
 
 Math arcade for grades 2–5. Munch the numbers that match the rule; dodge Troggles.
 
+The board starts small (3×4) and grows every two levels up to 6×8. Troggles unlock slowly:
+
+- **Wander** — walks around at random
+- **Chase** — follows you (with gaps so you can escape)
+- **Fire-breath** — lights the single square in front of it
+- **Exploder** — pops if you stand on a side-adjacent square (up/down/left/right; diagonal is safe), after a short warning
+- **Hunter** — eats other Troggles; still hurts you on contact
+
 ## Install on Omarchy
 
 **1. Install the tools** (fixes `command not found`):

@@ -1,12 +1,32 @@
-"""Board generation: fair mix of correct and incorrect cells."""
+"""Board generation: fair mix of correct and incorrect cells.
+
+The playfield starts small (3×4) and grows every two levels up to 6×8.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import random
 
-from omunch.constants import COLS, ROWS
+from omunch.constants import MAX_COLS, MAX_ROWS
 from omunch.rules import Rule, factors_of, is_prime
+
+# (rows, cols) for levels 1–2, 3–4, 5–6, 7–8, then 9+ stays at full size.
+BOARD_STEPS: tuple[tuple[int, int], ...] = (
+    (3, 4),
+    (4, 5),
+    (5, 6),
+    (5, 7),
+    (MAX_ROWS, MAX_COLS),
+)
+
+
+def board_size_for_level(level: int) -> tuple[int, int]:
+    """Return (rows, cols) for a 1-based level. Grows toward MAX_ROWS × MAX_COLS."""
+    idx = max(0, (max(1, level) - 1) // 2)
+    if idx >= len(BOARD_STEPS):
+        return BOARD_STEPS[-1]
+    return BOARD_STEPS[idx]
 
 
 @dataclass
@@ -23,6 +43,14 @@ class Board:
     cells: list[list[Cell]] = field(default_factory=list)
     rule: Rule | None = None
 
+    @property
+    def rows(self) -> int:
+        return len(self.cells)
+
+    @property
+    def cols(self) -> int:
+        return len(self.cells[0]) if self.cells else 0
+
     def cell(self, row: int, col: int) -> Cell:
         return self.cells[row][col]
 
@@ -34,7 +62,7 @@ class Board:
         return sum(1 for c in self.all_cells() if not c.munched and self.rule.is_correct(c.value))
 
     def in_bounds(self, row: int, col: int) -> bool:
-        return 0 <= row < ROWS and 0 <= col < COLS
+        return 0 <= row < self.rows and 0 <= col < self.cols
 
 
 def _additions_for(target: int) -> list[tuple[str, int]]:
@@ -124,18 +152,31 @@ def item_pools(rule: Rule, level: int) -> tuple[list[tuple[str, int]], list[tupl
     raise ValueError(rule.mode)
 
 
-def generate_board(rule: Rule, level: int, rng: random.Random | None = None) -> Board:
+def _n_correct(total: int, level: int) -> int:
+    """About one third correct; never empty, never all, never more than half."""
+    target = max(3, (total + 2) // 3)
+    bump = min(total // 8, (level - 1) // 3)
+    return max(2, min(target + bump, total // 2, total - 2))
+
+
+def generate_board(
+    rule: Rule,
+    level: int,
+    rng: random.Random | None = None,
+    rows: int | None = None,
+    cols: int | None = None,
+) -> Board:
     rng = rng or random.Random()
+    if rows is None or cols is None:
+        rows, cols = board_size_for_level(level)
     correct_pool, wrong_pool = item_pools(rule, level)
     if not correct_pool:
         raise RuntimeError(f"No correct answers for {rule}")
     if not wrong_pool:
         raise RuntimeError(f"No wrong answers for {rule}")
 
-    total = ROWS * COLS
-    # About a third of the board is correct — never a full-correct board.
-    n_correct = 8 + min(6, (level - 1) // 2)
-    n_correct = max(6, min(n_correct, total // 2, total - 8))
+    total = rows * cols
+    n_correct = _n_correct(total, level)
 
     picks: list[tuple[str, int]] = [
         correct_pool[rng.randrange(len(correct_pool))] for _ in range(n_correct)
@@ -146,9 +187,9 @@ def generate_board(rule: Rule, level: int, rng: random.Random | None = None) -> 
 
     cells: list[list[Cell]] = []
     i = 0
-    for r in range(ROWS):
+    for r in range(rows):
         row: list[Cell] = []
-        for c in range(COLS):
+        for c in range(cols):
             label, value = picks[i]
             row.append(Cell(r, c, label, value))
             i += 1
@@ -161,5 +202,5 @@ def generate_board(rule: Rule, level: int, rng: random.Random | None = None) -> 
         cells[0][0] = Cell(0, 0, label, value)
     if board.remaining_correct() == total:
         label, value = wrong_pool[0]
-        cells[0][1] = Cell(0, 1, label, value)
+        cells[0][min(1, cols - 1)] = Cell(0, min(1, cols - 1), label, value)
     return board
