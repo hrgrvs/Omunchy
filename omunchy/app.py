@@ -816,7 +816,7 @@ class Game:
             dest = sprite.get_rect(center=munchy_sprite_center(pref.center, hop))
             self.screen.blit(sprite, dest)
             if peeking:
-                # Digit is wider than the 56px sprite (equals-mode expressions).
+                # Digit can be wider than the sprite (equals-mode expressions).
                 # Redraw on top so the number is never covered, mouth hole behind.
                 draw_cell_digit(
                     self.screen,

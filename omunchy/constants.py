@@ -112,8 +112,9 @@ MODE_BLURBS = {
 }
 
 
-# Pixel sizes (16×16 art scaled up). Munchy fills the cell; Troggles vary.
-MUNCHY_SPRITE_SIZE = 80
+# Pixel sizes (16×16 art scaled up). Munchy sits in the cell with a little
+# margin — larger than the old 56px sprite, smaller than a cell-filling 80.
+MUNCHY_SPRITE_SIZE = 72
 TROGGLE_SPRITE_SIZES = {
     "wander": 40,
     "chase": 52,
