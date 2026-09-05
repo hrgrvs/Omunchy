@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-WINDOW_W = 960
+# 16:9 logical frame — fills typical laptop screens; pygame.SCALED letterboxes.
+WINDOW_W = 1280
 WINDOW_H = 720
 FPS = 60
-TITLE = "Omunch"
+TITLE = "Omunchy"
 
 # Full-size board (late levels). Early levels use a smaller grid that grows here.
 MAX_ROWS = 6
@@ -29,13 +30,20 @@ MUNCH_LOCK = 0.18
 HIT_IFRAMES = 1.6
 TROGGLE_FREEZE = 0.9
 
-# Fire-breath: wind-up, then one cell directly in front.
-FIRE_WINDUP = 0.40
-FIRE_DURATION = 0.70
-FIRE_COOLDOWN = 2.15
+# Kid-fair Troggle pace (grades 2–5). Higher interval = slower / less aggressive.
+# Whole curve is shifted slower than the first release; kinds keep their spread.
+TROGGLE_INTERVAL_START = 1.38
+TROGGLE_INTERVAL_STEP = 0.032
+TROGGLE_INTERVAL_FLOOR = 0.70
+TROGGLE_KIND_INTERVAL_MIN = 0.64
+
+# Fire-breath: longer wind-up so kids can step off the front square.
+FIRE_WINDUP = 0.58
+FIRE_DURATION = 0.80
+FIRE_COOLDOWN = 2.80
 
 # Exploder: 4-dir (cardinal) adjacency only — diagonal is safe for kids.
-EXPLODE_WINDUP = 0.55
+EXPLODE_WINDUP = 0.80
 
 # Retro arcade palette
 BLACK = (0, 0, 0)

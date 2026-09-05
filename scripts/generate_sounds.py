@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate committed WAV assets for Omunch (no runtime downloads)."""
+"""Generate committed WAV assets for Omunchy (no runtime downloads)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import wave
 from pathlib import Path
 
 SAMPLE_RATE = 22050
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "omunch" / "assets" / "sounds"
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "omunchy" / "assets" / "sounds"
 
 
 def clamp(value: float, lo: float = -1.0, hi: float = 1.0) -> float:

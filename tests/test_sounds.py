@@ -2,7 +2,7 @@ import unittest
 import wave
 from pathlib import Path
 
-from omunch.audio import REQUIRED_SOUNDS, SOUNDS_DIR
+from omunchy.audio import REQUIRED_SOUNDS, SOUNDS_DIR
 
 ALL = REQUIRED_SOUNDS + ("bg_loop",)
 

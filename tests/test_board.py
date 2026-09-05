@@ -1,10 +1,19 @@
 import random
 import unittest
 
-from omunch.board import BOARD_STEPS, board_size_for_level, generate_board
-from omunch.constants import CELL_H, CELL_W, MAX_COLS, MAX_ROWS, WINDOW_W, grid_geometry
-from omunch.entities import safe_player_spawn, spawn_troggles, troggle_kinds_for_level
-from omunch.rules import rule_for
+from omunchy.board import BOARD_STEPS, board_size_for_level, generate_board
+from omunchy.constants import (
+    CELL_H,
+    CELL_W,
+    MAX_COLS,
+    MAX_ROWS,
+    TITLE,
+    WINDOW_H,
+    WINDOW_W,
+    grid_geometry,
+)
+from omunchy.entities import safe_player_spawn, spawn_troggles, troggle_kinds_for_level
+from omunchy.rules import rule_for
 
 
 class BoardSizeTests(unittest.TestCase):
@@ -43,6 +52,11 @@ class BoardSizeTests(unittest.TestCase):
         full_left, _full_top, full_w, full_h = grid_geometry(MAX_ROWS, MAX_COLS)
         self.assertLess(width * height, full_w * full_h)
         self.assertGreater(left, full_left)
+
+    def test_logical_frame_is_widescreen(self) -> None:
+        self.assertEqual((WINDOW_W, WINDOW_H), (1280, 720))
+        self.assertAlmostEqual(WINDOW_W / WINDOW_H, 16 / 9)
+        self.assertEqual(TITLE, "Omunchy")
 
 
 class BoardTests(unittest.TestCase):

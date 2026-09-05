@@ -18,14 +18,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import random
 
-from omunch.board import board_size_for_level
-from omunch.constants import (
+from omunchy.board import board_size_for_level
+from omunchy.constants import (
     EXPLODE_WINDUP,
     FIRE_COOLDOWN,
     FIRE_DURATION,
     FIRE_WINDUP,
     MAX_COLS,
     MAX_ROWS,
+    TROGGLE_INTERVAL_FLOOR,
+    TROGGLE_INTERVAL_START,
+    TROGGLE_INTERVAL_STEP,
+    TROGGLE_KIND_INTERVAL_MIN,
 )
 
 TROGGLE_KINDS = ("wander", "chase", "fire", "exploder", "hunter")
@@ -96,9 +100,9 @@ class Muncher(Actor):
 @dataclass
 class Troggle(Actor):
     kind: str = "wander"
-    interval: float = 0.75
+    interval: float = 1.15
     heading: tuple[int, int] = (1, 0)
-    fire_cooldown: float = 1.6
+    fire_cooldown: float = 2.2
     fire_windup: float = 0.0
     fire_active: float = 0.0
     explode_windup: float = 0.0
@@ -292,6 +296,12 @@ def apply_hunter_eats(troggles: list[Troggle]) -> list[Troggle]:
     return [t for i, t in enumerate(troggles) if i not in eaten]
 
 
+def troggle_interval_for(level: int, kind: str) -> float:
+    """Seconds between steps. Higher = slower. Kid-fair curve for grades 2–5."""
+    base = max(TROGGLE_INTERVAL_FLOOR, TROGGLE_INTERVAL_START - (level - 1) * TROGGLE_INTERVAL_STEP)
+    return max(TROGGLE_KIND_INTERVAL_MIN, base + _KIND_INTERVAL_BIAS.get(kind, 0.0))
+
+
 def troggle_kinds_for_level(level: int) -> tuple[str, ...]:
     """Slow introduction: one wanderer first, all five types by level 10."""
     if level <= 2:
@@ -384,7 +394,6 @@ def spawn_troggles(
     spots = _spawn_spots(rows, cols, player, rng)
 
     troggles: list[Troggle] = []
-    base_interval = max(0.44, 0.96 - (level - 1) * 0.035)
     for i, kind in enumerate(kinds):
         row, col = spots[i % len(spots)]
         # If we wrapped spots, nudge unused nearby edges when possible.
@@ -393,11 +402,11 @@ def spawn_troggles(
                 if alt not in {(t.row, t.col) for t in troggles} and alt != player:
                     row, col = alt
                     break
-        interval = max(0.40, base_interval + _KIND_INTERVAL_BIAS.get(kind, 0.0))
+        interval = troggle_interval_for(level, kind)
         t = Troggle(row=row, col=col, kind=kind, interval=interval)
         t.heading = _inward_heading(row, col, rows, cols)
-        t.move_timer = 0.70 + i * 0.22
-        t.fire_cooldown = 1.5 + i * 0.35
+        t.move_timer = 1.05 + i * 0.30
+        t.fire_cooldown = 2.2 + i * 0.45
         troggles.append(t)
     return troggles
 
