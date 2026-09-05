@@ -653,15 +653,29 @@ class Game:
             chomping = self.player.chomp_timer > 0 or (
                 self.eat_fx is not None and not self.eat_fx.done
             )
+            standing = self.board.cell(self.player.row, self.player.col)
+            # Open mouth over an unmunched number so kids can still read it.
+            peeking = (not chomping) and (not standing.munched)
             sprite = muncher_surface(
                 frame,
                 self.player.facing[0],
                 chomping,
                 self.player.invulnerable(),
                 self.outfit,
+                peeking=peeking,
             )
             dest = sprite.get_rect(center=(pref.centerx, pref.centery + hop + 8))
             self.screen.blit(sprite, dest)
+            if peeking:
+                # Digit is wider than the 56px sprite (equals-mode expressions).
+                # Redraw on top so the number is never covered, mouth hole behind.
+                draw_cell_digit(
+                    self.screen,
+                    standing.label,
+                    self.font_cell,
+                    CELL_DIGIT,
+                    pref.center,
+                )
         self._draw_eat_fx(grid_left, grid_top)
 
         for troggle in self.troggles:

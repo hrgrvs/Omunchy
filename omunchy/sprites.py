@@ -27,9 +27,30 @@ from omunchy.wearables import Outfit, paint_outfit
 
 _CACHE: dict[tuple, pygame.Surface] = {}
 
+# 16×16 source hole used while standing on an unmunched cell.
+# Interior is cleared (see-through) so the high-contrast digit reads through.
+# Starts under the eyes (y=4–6) so the face still reads as a muncher.
+PEEK_MOUTH = (3, 7, 10, 5)
+
 
 def _scale(surface: pygame.Surface, size: int) -> pygame.Surface:
     return pygame.transform.scale(surface, (size, size))
+
+
+def _punch_rect(src: pygame.Surface, rect: tuple[int, int, int, int]) -> None:
+    """Set pixels to transparent so the board (and its digit) show through."""
+    src.fill((0, 0, 0, 0), rect)
+
+
+def _draw_peek_mouth(src: pygame.Surface) -> None:
+    """Wide-open bite with a see-through interior and a dark jaw."""
+    x, y, w, h = PEEK_MOUTH
+    pygame.draw.rect(src, (40, 20, 10), (x - 1, y - 1, w + 2, h + 2))
+    _punch_rect(src, PEEK_MOUTH)
+    # Teeth along the top lip — stay out of the hole's center.
+    pygame.draw.rect(src, WHITE, (4, y, 2, 1))
+    pygame.draw.rect(src, WHITE, (7, y, 2, 1))
+    pygame.draw.rect(src, WHITE, (10, y, 2, 1))
 
 
 def muncher_surface(
@@ -38,9 +59,10 @@ def muncher_surface(
     chomping: bool,
     flash: bool,
     outfit: Outfit | None = None,
+    peeking: bool = False,
 ) -> pygame.Surface:
     wear_key = outfit.cache_key() if outfit is not None else ()
-    key = ("muncher", frame, facing_x, chomping, flash, wear_key)
+    key = ("muncher", frame, facing_x, chomping, flash, wear_key, peeking)
     cached = _CACHE.get(key)
     if cached is not None:
         return cached
@@ -48,7 +70,9 @@ def muncher_surface(
     src = pygame.Surface((16, 16), pygame.SRCALPHA)
     body = GOLD if not flash else WHITE
     outline = (168, 120, 16) if not flash else (200, 200, 200)
-    paint_outfit(src, outfit, frame, facing_x, chomping, layer="back")
+    # Hide the mustache while the mouth is a hole or a chomp so it cannot cover the digit.
+    mouth_busy = chomping or peeking
+    paint_outfit(src, outfit, frame, facing_x, mouth_busy, layer="back")
     pygame.draw.ellipse(src, outline, (1, 2, 14, 11))
     pygame.draw.ellipse(src, body, (2, 3, 12, 9))
 
@@ -58,13 +82,14 @@ def muncher_surface(
     pygame.draw.rect(src, (20, 20, 20), (5, 5, 2, 2))
     pygame.draw.rect(src, (20, 20, 20), (10, 5, 2, 2))
 
-    # Mouth — big chomp so the number can disappear into the bite.
+    # Mouth — closed idle, or a filled chomp during the eat animation.
+    # Peeking (open hole) is applied after wearables so gear cannot hide the digit.
     if chomping:
         pygame.draw.rect(src, (40, 20, 10), (4, 7, 8, 6))
         pygame.draw.rect(src, ORANGE, (5, 8, 6, 3))
         pygame.draw.rect(src, WHITE, (5, 8, 2, 1))
         pygame.draw.rect(src, WHITE, (9, 8, 2, 1))
-    else:
+    elif not peeking:
         pygame.draw.rect(src, (40, 20, 10), (5, 9, 6, 2))
 
     # Legs (walk cycle)
@@ -79,7 +104,9 @@ def muncher_surface(
         pygame.draw.rect(src, body, (4, 12, 3, 2))
         pygame.draw.rect(src, body, (9, 13, 3, 2))
 
-    paint_outfit(src, outfit, frame, facing_x, chomping, layer="front")
+    paint_outfit(src, outfit, frame, facing_x, mouth_busy, layer="front")
+    if peeking and not chomping:
+        _draw_peek_mouth(src)
 
     if facing_x < 0:
         src = pygame.transform.flip(src, True, False)
