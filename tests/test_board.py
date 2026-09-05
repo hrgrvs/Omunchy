@@ -19,15 +19,15 @@ from omunchy.rules import rule_for
 class BoardSizeTests(unittest.TestCase):
     def test_level_one_is_visibly_smaller_than_max(self) -> None:
         rows, cols = board_size_for_level(1)
-        self.assertEqual((rows, cols), (3, 4))
+        self.assertEqual((rows, cols), (4, 5))
         self.assertLess(rows * cols, MAX_ROWS * MAX_COLS)
 
     def test_grows_every_two_levels_to_full_size(self) -> None:
-        self.assertEqual(board_size_for_level(1), (3, 4))
-        self.assertEqual(board_size_for_level(2), (3, 4))
-        self.assertEqual(board_size_for_level(3), (4, 5))
-        self.assertEqual(board_size_for_level(5), (5, 6))
-        self.assertEqual(board_size_for_level(7), (5, 7))
+        self.assertEqual(board_size_for_level(1), (4, 5))
+        self.assertEqual(board_size_for_level(2), (4, 5))
+        self.assertEqual(board_size_for_level(3), (5, 6))
+        self.assertEqual(board_size_for_level(5), (5, 7))
+        self.assertEqual(board_size_for_level(7), (6, 7))
         self.assertEqual(board_size_for_level(9), (MAX_ROWS, MAX_COLS))
         self.assertEqual(board_size_for_level(20), (MAX_ROWS, MAX_COLS))
         self.assertEqual(BOARD_STEPS[-1], (MAX_ROWS, MAX_COLS))
@@ -45,9 +45,9 @@ class BoardSizeTests(unittest.TestCase):
             self.assertFalse(board.in_bounds(0, cols))
 
     def test_grid_layout_uses_current_size(self) -> None:
-        left, top, width, height = grid_geometry(3, 4)
-        self.assertEqual(width, 4 * CELL_W)
-        self.assertEqual(height, 3 * CELL_H)
+        left, top, width, height = grid_geometry(4, 5)
+        self.assertEqual(width, 5 * CELL_W)
+        self.assertEqual(height, 4 * CELL_H)
         self.assertEqual(left, (WINDOW_W - width) // 2)
         full_left, _full_top, full_w, full_h = grid_geometry(MAX_ROWS, MAX_COLS)
         self.assertLess(width * height, full_w * full_h)
@@ -99,10 +99,10 @@ class SpawnTests(unittest.TestCase):
     def test_early_levels_are_sparse(self) -> None:
         rng = random.Random(11)
         player = (1, 1)
-        one = spawn_troggles(1, player, rng, 3, 4)
+        one = spawn_troggles(1, player, rng, 4, 5)
         self.assertEqual(len(one), 1)
         self.assertEqual(one[0].kind, "wander")
-        two = spawn_troggles(2, player, rng, 3, 4)
+        two = spawn_troggles(2, player, rng, 4, 5)
         self.assertEqual(len(two), 1)
         self.assertEqual(set(troggle_kinds_for_level(3)), {"wander", "chase"})
 

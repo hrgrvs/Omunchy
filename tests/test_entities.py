@@ -144,16 +144,16 @@ class PaceTests(unittest.TestCase):
         fire = troggle_interval_for(1, "fire")
         exploder = troggle_interval_for(1, "exploder")
         hunter = troggle_interval_for(1, "hunter")
-        # Noticeably slower than the first-release start of 0.96s.
-        self.assertGreaterEqual(wander, 1.30)
+        # Noticeably slower than the first-release start of 0.96s; nudged again.
+        self.assertGreaterEqual(wander, 1.40)
         self.assertGreater(chase, wander)
         self.assertGreater(fire, wander)
         self.assertGreater(exploder, wander)
         self.assertLess(hunter, wander)
-        self.assertGreater(troggle_interval_for(5, "wander"), 1.15)
-        self.assertGreater(troggle_interval_for(10, "wander"), 1.00)
-        self.assertGreater(troggle_interval_for(16, "wander"), 0.68)
-        spawned = spawn_troggles(1, (1, 1), random.Random(0), 3, 4)
+        self.assertGreater(troggle_interval_for(5, "wander"), 1.25)
+        self.assertGreater(troggle_interval_for(10, "wander"), 1.10)
+        self.assertGreater(troggle_interval_for(16, "wander"), 0.85)
+        spawned = spawn_troggles(1, (1, 1), random.Random(0), 4, 5)
         self.assertAlmostEqual(spawned[0].interval, wander)
 
 

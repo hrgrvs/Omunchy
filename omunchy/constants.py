@@ -26,24 +26,28 @@ BOTTOM_H = HINT_H
 
 START_LIVES = 3
 MOVE_DELAY = 0.15
-MUNCH_LOCK = 0.18
+MUNCH_LOCK = 0.32
 HIT_IFRAMES = 1.6
 TROGGLE_FREEZE = 0.9
 
 # Kid-fair Troggle pace (grades 2–5). Higher interval = slower / less aggressive.
-# Whole curve is shifted slower than the first release; kinds keep their spread.
-TROGGLE_INTERVAL_START = 1.38
-TROGGLE_INTERVAL_STEP = 0.032
-TROGGLE_INTERVAL_FLOOR = 0.70
-TROGGLE_KIND_INTERVAL_MIN = 0.64
+# Nudged a little slower again vs the previous curve; kinds keep their spread.
+TROGGLE_INTERVAL_START = 1.48
+TROGGLE_INTERVAL_STEP = 0.030
+TROGGLE_INTERVAL_FLOOR = 0.76
+TROGGLE_KIND_INTERVAL_MIN = 0.70
 
 # Fire-breath: longer wind-up so kids can step off the front square.
-FIRE_WINDUP = 0.58
+FIRE_WINDUP = 0.66
 FIRE_DURATION = 0.80
-FIRE_COOLDOWN = 2.80
+FIRE_COOLDOWN = 3.05
 
 # Exploder: 4-dir (cardinal) adjacency only — diagonal is safe for kids.
-EXPLODE_WINDUP = 0.80
+EXPLODE_WINDUP = 0.90
+
+# Munch / eat animation (number squash into the bite).
+EAT_CORRECT = 0.34
+EAT_WRONG = 0.40
 
 # Retro arcade palette
 BLACK = (0, 0, 0)

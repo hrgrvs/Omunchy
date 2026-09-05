@@ -2,7 +2,11 @@
 
 Math arcade for grades 2–5. Munch the numbers that match the rule; dodge Troggles.
 
-The board starts small (3×4) and grows every two levels up to 6×8. Troggles unlock slowly and move at a kid-fair pace:
+The board starts at **4×5** and grows every two levels up to **6×8**. Each mode+level plays the same way every time: same rule, same board size, same Troggle mix, and the same number layout.
+
+Every three cleared levels you pick a wearable from a short list (hat, crown, cape, glasses, monocle, mustache, cane, or shoes). One item per spot — a new hat replaces the old hat, but you can stack different spots. Gear lasts for the current run.
+
+Troggles unlock slowly and move at a kid-fair pace:
 
 - **Wander** — walks around at random
 - **Chase** — follows you (with gaps so you can escape)

@@ -27,6 +27,7 @@ class PygameSmokeTests(unittest.TestCase):
             MODE_ST,
             OVER_ST,
             PLAY_ST,
+            WARDROBE_ST,
         )
 
         game = self.Game()
@@ -34,6 +35,8 @@ class PygameSmokeTests(unittest.TestCase):
         from omunchy.constants import TITLE
 
         self.assertEqual(TITLE, "Omunchy")
+        game._draw()
+        game.anim = 1.8
         game._draw()
         game._keydown(self.pygame.K_F11)
         self.assertIsNotNone(game.screen)
@@ -50,12 +53,16 @@ class PygameSmokeTests(unittest.TestCase):
             self.assertEqual(game.state, INTRO_ST, msg=mode)
             self.assertIsNotNone(game.board)
             self.assertGreater(game.board.remaining_correct(), 0, msg=mode)
-            self.assertEqual((game.board.rows, game.board.cols), (3, 4), msg=mode)
+            self.assertEqual((game.board.rows, game.board.cols), (4, 5), msg=mode)
             self.assertTrue(game.board.in_bounds(game.player.row, game.player.col))
         self.assertEqual(len(game.troggles), 1)
         self.assertEqual(game.troggles[0].kind, "wander")
 
         game.state = PLAY_ST
+        game._munch()
+        self.assertIsNotNone(game.eat_fx)
+        game._draw()
+        game._update(1.0)
         game._draw()
         game.state = MODE_ST
         game._draw()
@@ -68,8 +75,14 @@ class PygameSmokeTests(unittest.TestCase):
         game._draw()
         game._finish_celebrate()
         self.assertEqual(game.level, 4)
+        self.assertEqual(game.state, WARDROBE_ST)
+        self.assertGreaterEqual(len(game.wear_choices), 3)
+        game._draw()
+        game._apply_wear_choice()
+        self.assertEqual(game.state, INTRO_ST)
         self.assertIsNotNone(game.board)
-        self.assertEqual((game.board.rows, game.board.cols), (4, 5))
+        self.assertEqual((game.board.rows, game.board.cols), (5, 6))
+        self.assertEqual(len(game.outfit.slots), 1)
 
         game.level = 3
         game.state = CLEAR_ST
@@ -78,7 +91,7 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertEqual(game.level, 4)
         game._begin_level()
         self.assertEqual(game.state, INTRO_ST)
-        self.assertEqual((game.board.rows, game.board.cols), (4, 5))
+        self.assertEqual((game.board.rows, game.board.cols), (5, 6))
         game.level = 10
         game._begin_level()
         self.assertEqual((game.board.rows, game.board.cols), (6, 8))
