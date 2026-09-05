@@ -22,6 +22,9 @@ class DeterminismTests(unittest.TestCase):
         self.assertEqual((a.rows, a.cols), (4, 5))
         other = generate_board(rule_for("multiples", 3), 3)
         self.assertNotEqual(labels_a, [c.label for c in other.all_cells()])
+        pair_a = generate_board(rule_for("pairings", 1), 1)
+        pair_b = generate_board(rule_for("pairings", 1), 1)
+        self.assertEqual([c.label for c in pair_a.all_cells()], [c.label for c in pair_b.all_cells()])
 
     def test_rules_and_troggle_mix_are_fixed_per_level(self) -> None:
         self.assertEqual(rule_for("factors", 3), rule_for("factors", 3))

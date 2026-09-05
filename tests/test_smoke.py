@@ -56,7 +56,7 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertIn("correct", game.audio._sounds)
         self.assertIn("celebrate", game.audio._sounds)
 
-        for mode in ("multiples", "factors", "primes", "equals", "mixed"):
+        for mode in ("multiples", "factors", "primes", "equals", "pairings"):
             game.start_run(mode)
             self.assertEqual(game.state, INTRO_ST, msg=mode)
             self.assertIsNotNone(game.board)
