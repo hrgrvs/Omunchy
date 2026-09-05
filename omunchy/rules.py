@@ -7,20 +7,22 @@ import math
 
 SMALL_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29)
 
-MULTIPLES_STEPS = (
-    (2, 20),
-    (5, 30),
-    (10, 40),
-    (3, 30),
-    (4, 36),
-    (6, 42),
-    (2, 40),
-    (3, 45),
-    (5, 50),
-    (4, 48),
-    (6, 54),
-    (10, 60),
-)
+
+def _multiples_max_n(factor: int) -> int:
+    """Grade 2–5 product ceiling for a Multiples-of-n board (capped at 60)."""
+    if factor <= 5:
+        span = 10
+    elif factor <= 10:
+        span = 6
+    elif factor <= 15:
+        span = 4
+    else:
+        span = 3
+    return min(60, factor * span)
+
+
+# Multiples of 2, then 3, … through 20. Same (mode, level) every playthrough.
+MULTIPLES_STEPS = tuple((n, _multiples_max_n(n)) for n in range(2, 21))
 
 FACTORS_STEPS = (8, 10, 12, 12, 16, 18, 20, 24, 24, 30, 36)
 
