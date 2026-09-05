@@ -954,7 +954,11 @@ class Game:
         kinds = ("wander", "chase", "fire", "exploder", "hunter")
         frame = int(self.anim * 5)
         for i, kind in enumerate(kinds):
-            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
+            look_x = look_y = 0
+            if kind == "chase":
+                # Parade sits under Munchy — pupils glance up at him.
+                look_y = -1
+            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1, look_x=look_x, look_y=look_y)
             x = cx + (i - 2) * 180
             self.screen.blit(sprite, sprite.get_rect(center=(x, y + 300)))
         draw_outlined_text(self.screen, LICENSE_LINE, self.font_tiny, CREAM, (cx, WINDOW_H - 48))
@@ -1137,7 +1141,10 @@ class Game:
             box = pygame.Rect(80, y, WINDOW_W - 160, 98)
             pygame.draw.rect(self.screen, (10, 40, 28), box, border_radius=10)
             pygame.draw.rect(self.screen, CELL_BORDER, box, 2, border_radius=10)
-            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1)
+            look_x = look_y = 0
+            if kind == "chase":
+                look_x = 1
+            sprite = troggle_surface(kind, frame, 1 if i % 2 == 0 else -1, look_x=look_x, look_y=look_y)
             self.screen.blit(sprite, sprite.get_rect(center=(150, y + 49)))
             draw_outlined_text(self.screen, name, self.font_md, YELLOW, (430, y + 32))
             draw_outlined_text(self.screen, blurb, self.font_sm, WHITE, (430, y + 68))
