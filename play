@@ -1,23 +1,34 @@
 #!/usr/bin/env bash
-# One-shot install + launch for Omarchy / Arch.
+# Install deps if needed, then launch Omunch.
 set -euo pipefail
 cd "$(dirname "$0")"
 
+echo "Omunch — starting…"
+
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "Need python3. On Omarchy: sudo pacman -S python" >&2
+  echo "Missing python3. On Omarchy run: sudo pacman -S python" >&2
   exit 1
 fi
 
+# Prefer system pygame (fast on Arch/Omarchy) when present.
+if python3 -c 'import pygame' 2>/dev/null; then
+  echo "Using system pygame."
+  exec python3 -m omunch "$@"
+fi
+
+echo "No system pygame — using a local venv (first run may take a minute)…"
 if [[ ! -d .venv ]]; then
+  echo "Creating .venv…"
   python3 -m venv .venv
 fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-python - <<'PY' || pip install -r requirements.txt
-import importlib.util
-import sys
-sys.exit(0 if importlib.util.find_spec("pygame") else 1)
-PY
+if ! python -c 'import pygame' 2>/dev/null; then
+  echo "Installing pygame…"
+  pip install --upgrade pip
+  pip install -r requirements.txt
+fi
 
+echo "Launching…"
 exec python -m omunch "$@"
