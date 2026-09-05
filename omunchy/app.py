@@ -17,7 +17,9 @@ from omunchy.constants import (
     CELL_BG,
     CELL_BG_ALT,
     CELL_BORDER,
+    CELL_DIGIT,
     CELL_EMPTY,
+    CELL_EMPTY_BORDER,
     CELL_HL,
     CREAM,
     CYAN,
@@ -33,12 +35,12 @@ from omunchy.constants import (
     HIT_IFRAMES,
     HUD_BG,
     HUD_H,
+    INTRO_DIM_ALPHA,
     MAX_COLS,
     MAX_ROWS,
     MODE_BLURBS,
     MODE_LABELS,
     MODES,
-    MOVE_DELAY,
     MUNCH_LOCK,
     ORANGE,
     RED,
@@ -65,6 +67,7 @@ from omunchy.rules import Rule, rule_for
 from omunchy.progress import stable_rng
 from omunchy.sprites import (
     cell_rect,
+    draw_cell_digit,
     draw_outlined_text,
     eat_label_transform,
     fire_surface,
@@ -131,7 +134,8 @@ class Game:
         self.font_md = _font(28, True)
         self.font_sm = _font(20, True)
         self.font_tiny = _font(16)
-        self.font_cell = _font(30, True)
+        self.font_cell = _font(34, True)
+        pygame.key.set_repeat()  # tap-only: no OS/pygame key-repeat stepping
 
         self.state = TITLE_ST
         self.mode_index = 0
@@ -144,7 +148,6 @@ class Game:
         self.board: Board | None = None
         self.player = Muncher(row=1, col=1)
         self.troggles: list[Troggle] = []
-        self.move_cool = 0.0
         self.freeze = 0.0
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
@@ -192,7 +195,6 @@ class Game:
         self.player = Muncher(row=pr, col=pc)
         occupied.add((pr, pc))
         self.troggles = spawn_troggles(self.level, (pr, pc), spawn_rng, rows, cols)
-        self.move_cool = 0.0
         self.freeze = 0.35
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
@@ -239,11 +241,14 @@ class Game:
             elif event.type == pygame.KEYUP:
                 self.held.discard(event.key)
             elif event.type == pygame.KEYDOWN:
+                if event.key in self.held:
+                    # Ignore OS / pygame key-repeat. One tap = one action.
+                    continue
+                self.held.add(event.key)
                 # Celebrate skip
                 if self.state == CELEBRATE_ST and event.key in (pygame.K_SPACE, pygame.K_RETURN):
                     self._open_wardrobe()
                     continue
-                self.held.add(event.key)
                 self._keydown(event.key)
 
     def _keydown(self, key: int) -> None:
@@ -384,22 +389,7 @@ class Game:
         if not step:
             return
         rows, cols = self._board_size()
-        if self.player.try_step(*step, rows, cols):
-            self.move_cool = MOVE_DELAY
-
-    def _held_move(self) -> None:
-        order = (
-            (pygame.K_LEFT, pygame.K_a, pygame.K_j, 0, -1),
-            (pygame.K_RIGHT, pygame.K_d, pygame.K_l, 0, 1),
-            (pygame.K_UP, pygame.K_w, pygame.K_i, -1, 0),
-            (pygame.K_DOWN, pygame.K_s, pygame.K_k, 1, 0),
-        )
-        for a, b, c, dr, dc in order:
-            if a in self.held or b in self.held or c in self.held:
-                rows, cols = self._board_size()
-                if self.player.try_step(dr, dc, rows, cols):
-                    self.move_cool = MOVE_DELAY
-                return
+        self.player.try_step(*step, rows, cols)
 
     def _munch(self) -> None:
         if self.board is None or self.rule is None:
@@ -491,11 +481,8 @@ class Game:
                 if self.state != PLAY_ST:
                     return
         self.player.tick(dt)
-        self.move_cool = max(0.0, self.move_cool - dt)
         self.freeze = max(0.0, self.freeze - dt)
         rows, cols = self._board_size()
-        if self.move_cool <= 0:
-            self._held_move()
         pack = tuple(self.troggles)
         if self.freeze <= 0:
             for troggle in self.troggles:
@@ -579,23 +566,25 @@ class Game:
                 cell = self.board.cell(r, c)
                 if cell.munched:
                     fill = CELL_EMPTY
+                    border = CELL_EMPTY_BORDER
                 else:
                     fill = CELL_BG_ALT if (r + c) % 2 else CELL_BG
+                    border = CELL_BORDER
                     if flash and (self.player.row, self.player.col) == (r, c):
                         fill = RED
                 pygame.draw.rect(self.screen, fill, rect.inflate(-4, -4), border_radius=6)
-                pygame.draw.rect(self.screen, CELL_BORDER, rect.inflate(-4, -4), 2, border_radius=6)
+                pygame.draw.rect(self.screen, border, rect.inflate(-4, -4), 2, border_radius=6)
                 eating_here = (
                     self.eat_fx is not None
                     and self.eat_fx.row == r
                     and self.eat_fx.col == c
                 )
                 if not cell.munched and not eating_here:
-                    draw_outlined_text(
+                    draw_cell_digit(
                         self.screen,
                         cell.label,
                         self.font_cell,
-                        CREAM,
+                        CELL_DIGIT,
                         rect.center,
                     )
 
@@ -631,7 +620,7 @@ class Game:
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
-        hint = "ARROWS/WASD/IJKL move   SPACE munch   ESC pause   M mute   F11 window"
+        hint = "ARROWS/WASD/IJKL tap to move   SPACE munch   ESC pause   M mute   F11 window"
         draw_outlined_text(
             self.screen,
             hint,
@@ -751,7 +740,7 @@ class Game:
         )
 
     def _draw_intro_overlay(self) -> None:
-        self._dim(150)
+        self._dim(INTRO_DIM_ALPHA)
         draw_outlined_text(self.screen, "GET READY", self.font_lg, GOLD, (WINDOW_W // 2, 250))
         if self.rule:
             draw_outlined_text(self.screen, self.rule.title, self.font_xl, WHITE, (WINDOW_W // 2, 340))

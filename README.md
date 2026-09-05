@@ -90,7 +90,7 @@ Uses system pygame when available, otherwise sets up a venv. Prefer `python -m o
 
 ## Controls
 
-- Arrows / WASD / IJKL — move (also pick a wearable)
+- Arrows / WASD / IJKL — tap to move one cell (also pick a wearable)
 - Space — munch (or confirm a wearable)
 - Esc — pause (quit from the title screen; skip a wearable)
 - F11 — toggle fullscreen / window

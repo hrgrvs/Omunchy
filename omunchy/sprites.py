@@ -5,6 +5,7 @@ from __future__ import annotations
 import pygame
 
 from omunchy.constants import (
+    BLACK,
     CELL_H,
     CELL_W,
     CREAM,
@@ -270,4 +271,39 @@ def draw_outlined_text(
     rect = base.get_rect(center=center)
     for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-1, -1), (1, 1)):
         surface.blit(shadow, rect.move(dx, dy))
+    surface.blit(base, rect)
+
+
+def draw_cell_digit(
+    surface: pygame.Surface,
+    text: str,
+    font: pygame.font.Font,
+    color: tuple[int, int, int],
+    center: tuple[int, int],
+    outline: tuple[int, int, int] = BLACK,
+) -> None:
+    """Chunky pixel ring + drop shadow so grid numbers stay readable on 16:9."""
+    base = font.render(text, True, color)
+    ring = font.render(text, True, outline)
+    rect = base.get_rect(center=center)
+    surface.blit(ring, rect.move(2, 3))
+    for dx, dy in (
+        (-2, 0),
+        (2, 0),
+        (0, -2),
+        (0, 2),
+        (-2, -2),
+        (2, -2),
+        (-2, 2),
+        (2, 2),
+        (-1, -2),
+        (1, -2),
+        (-1, 2),
+        (1, 2),
+        (-2, -1),
+        (2, -1),
+        (-2, 1),
+        (2, 1),
+    ):
+        surface.blit(ring, rect.move(dx, dy))
     surface.blit(base, rect)
