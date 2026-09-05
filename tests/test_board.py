@@ -72,6 +72,15 @@ class BoardTests(unittest.TestCase):
                 self.assertLess(correct, total, msg=(mode, level, rule.title))
                 self.assertLessEqual(correct, total // 2 + 2, msg=(mode, level))
 
+    def test_multiples_boards_cover_two_through_twenty(self) -> None:
+        rng = random.Random(42)
+        for level, n in enumerate(range(2, 21), start=1):
+            rule = rule_for("multiples", level)
+            self.assertEqual(rule.param, n)
+            board = generate_board(rule, level, rng)
+            self.assertGreater(board.remaining_correct(), 0, msg=(level, n))
+            self.assertLess(board.remaining_correct(), board.rows * board.cols)
+
     def test_munching_correct_clears_toward_advance(self) -> None:
         board = generate_board(rule_for("multiples", 1), 1, random.Random(1))
         remaining = board.remaining_correct()

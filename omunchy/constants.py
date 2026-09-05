@@ -93,7 +93,7 @@ MODE_LABELS = {
     "mixed": "Mixed",
 }
 MODE_BLURBS = {
-    "multiples": "Munch multiples of a number (2, 3, 4, 5, 6, 10).",
+    "multiples": "Munch multiples of a number (2 through 20, in order).",
     "factors": "Munch the factors of a number up to 36.",
     "primes": "Munch prime numbers (small primes through 29).",
     "equals": "Munch expressions that equal the target.",

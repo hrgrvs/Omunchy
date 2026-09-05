@@ -51,10 +51,38 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(resolve_play_mode("mixed", 4), "equals")
         self.assertEqual(resolve_play_mode("mixed", 5), "multiples")
 
+    def test_multiples_covers_two_through_twenty_in_order(self) -> None:
+        expected = list(range(2, 21))
+        actual = [rule_for("multiples", level).param for level in range(1, 20)]
+        self.assertEqual(actual, expected)
+        for level, n in enumerate(expected, start=1):
+            rule = rule_for("multiples", level)
+            self.assertEqual(rule.title, f"Multiples of {n}")
+            self.assertEqual(rule.param, n)
+            self.assertGreaterEqual(rule.max_n or 0, n)
+            self.assertLessEqual(rule.max_n or 0, 60)
+            again = rule_for("multiples", level)
+            self.assertEqual(rule, again)
+
+    def test_mixed_multiples_visits_follow_two_through_twenty(self) -> None:
+        for i, n in enumerate(range(2, 21)):
+            level = 1 + i * 4
+            rule = rule_for("mixed", level)
+            self.assertEqual(rule.mode, "multiples")
+            self.assertEqual(rule.param, n)
+            self.assertEqual(rule.title, f"Multiples of {n}")
+
+    def test_multiples_wraps_deterministically_after_twenty(self) -> None:
+        first = rule_for("multiples", 1)
+        wrapped = rule_for("multiples", 20)
+        self.assertEqual(wrapped.param, first.param)
+        self.assertEqual(wrapped.title, first.title)
+        self.assertEqual(rule_for("multiples", 20), rule_for("multiples", 20))
+
     def test_progression_stays_grade_band(self) -> None:
         for level in range(1, 16):
             multiples = rule_for("multiples", level)
-            self.assertIn(multiples.param, (2, 3, 4, 5, 6, 10))
+            self.assertIn(multiples.param, range(2, 21))
             self.assertLessEqual(multiples.max_n or 0, 60)
             factors = rule_for("factors", level)
             self.assertLessEqual(factors.param or 0, 36)
