@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 import unittest
 
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+
 from omunchy.constants import CELL_DIGIT, GOLD, WINDOW_H, WINDOW_W
-from omunchy.sprites import PEEK_MOUTH
+from omunchy.sprites import PEEK_MOUTH, muncher_surface
 from omunchy.wearables import BY_ID, Outfit
 
 
@@ -34,16 +37,13 @@ class MuncherMouthSpriteTests(unittest.TestCase):
             raise unittest.SkipTest("pygame is not installed") from exc
         pygame.display.init()
         cls.pygame = pygame
-        from omunchy.sprites import muncher_surface
-
-        cls.muncher_surface = muncher_surface
 
     @classmethod
     def tearDownClass(cls) -> None:
         cls.pygame.display.quit()
 
     def test_peeking_mouth_is_see_through(self) -> None:
-        sprite = self.muncher_surface(0, 1, False, False, peeking=True)
+        sprite = muncher_surface(0, 1, False, False, peeking=True)
         mx, my = _scaled_mouth_center()
         self.assertEqual(sprite.get_at((mx, my))[3], 0)
         # A ring of the hole should be empty, not a single lucky pixel.
@@ -55,7 +55,7 @@ class MuncherMouthSpriteTests(unittest.TestCase):
         self.assertGreaterEqual(clear, 20)
 
     def test_closed_mouth_covers_the_bite(self) -> None:
-        sprite = self.muncher_surface(0, 1, False, False, peeking=False)
+        sprite = muncher_surface(0, 1, False, False, peeking=False)
         mx, my = _scaled_mouth_center()
         pixel = sprite.get_at((mx, my))
         self.assertGreater(pixel[3], 200)
@@ -66,7 +66,7 @@ class MuncherMouthSpriteTests(unittest.TestCase):
         )
 
     def test_chomp_mouth_stays_opaque_for_the_eat_animation(self) -> None:
-        sprite = self.muncher_surface(0, 1, True, False, peeking=True)
+        sprite = muncher_surface(0, 1, True, False, peeking=True)
         mx, my = _scaled_mouth_center()
         pixel = sprite.get_at((mx, my))
         self.assertGreater(pixel[3], 200)
@@ -81,7 +81,7 @@ class MuncherMouthSpriteTests(unittest.TestCase):
         outfit.wear(BY_ID["mustache-bushy"])
         outfit.wear(BY_ID["cane-wood"])
         outfit.wear(BY_ID["shoes-sneakers"])
-        sprite = self.muncher_surface(0, 1, False, False, outfit, peeking=True)
+        sprite = muncher_surface(0, 1, False, False, outfit, peeking=True)
         mx, my = _scaled_mouth_center()
         self.assertEqual(sprite.get_at((mx, my))[3], 0)
         pixels = [
