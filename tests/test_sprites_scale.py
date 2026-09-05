@@ -1,4 +1,4 @@
-"""Munchy fills the cell; Troggles are distinct sizes; chase eyes track."""
+"""Munchy fits the cell with margin; Troggles are distinct sizes; chase eyes track."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import unittest
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
-from omunchy.constants import MUNCHY_SPRITE_SIZE, TROGGLE_SPRITE_SIZES
+from omunchy.constants import CELL_H, MUNCHY_SPRITE_SIZE, TROGGLE_SPRITE_SIZES
 from omunchy.sprites import muncher_surface, troggle_surface
 
 
@@ -26,11 +26,14 @@ class SpriteScaleTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.pygame.display.quit()
 
-    def test_munchy_is_the_largest_and_fills_the_cell(self) -> None:
+    def test_munchy_is_the_largest_and_fits_the_cell_with_margin(self) -> None:
         sprite = muncher_surface(0, 1, False, False)
         self.assertEqual(sprite.get_width(), MUNCHY_SPRITE_SIZE)
         self.assertEqual(sprite.get_height(), MUNCHY_SPRITE_SIZE)
-        self.assertGreaterEqual(MUNCHY_SPRITE_SIZE, 76)
+        # Larger / clearer than the pre-fill 56px sprite, with room in the cell.
+        self.assertGreater(MUNCHY_SPRITE_SIZE, 56)
+        self.assertLessEqual(MUNCHY_SPRITE_SIZE, CELL_H - 8)
+        self.assertGreater(MUNCHY_SPRITE_SIZE, max(TROGGLE_SPRITE_SIZES.values()))
 
     def test_troggle_sizes_are_distinct_and_smaller_than_munchy(self) -> None:
         sizes = {}
