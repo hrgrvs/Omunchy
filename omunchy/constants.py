@@ -39,8 +39,19 @@ TROGGLE_KIND_INTERVAL_MIN = 0.70
 
 # Fire-breath: longer wind-up so kids can step off the front square.
 FIRE_WINDUP = 0.66
-FIRE_DURATION = 0.80
+# How long a burning cell stays lit. Linger is independent of the Troggle pose.
+FIRE_DURATION = 1.20
+# Short breath pose / lock after a cell ignites.
+FIRE_BREATH = 0.42
 FIRE_COOLDOWN = 3.05
+# Oldest flame goes out when a third cell would ignite.
+MAX_ACTIVE_FIRES = 2
+
+# Telegraph before a Troggle walks onto the board (mid-level refill).
+SPAWN_TELEGRAPH = 0.80
+
+# Player-facing hero name. Package / window title stay Omunchy.
+HERO_NAME = "Munchy"
 
 # Exploder: 4-dir (cardinal) adjacency only — diagonal is safe for kids.
 EXPLODE_WINDUP = 0.90
@@ -98,6 +109,17 @@ MODE_BLURBS = {
     "primes": "Munch prime numbers (small primes through 29).",
     "equals": "Munch expressions that equal the target.",
     "pairings": "Grab one number, then eat it with a partner that makes 10, then 100, then 1000.",
+}
+
+
+# Pixel sizes (16×16 art scaled up). Munchy fills the cell; Troggles vary.
+MUNCHY_SPRITE_SIZE = 80
+TROGGLE_SPRITE_SIZES = {
+    "wander": 40,
+    "chase": 52,
+    "fire": 62,
+    "exploder": 48,
+    "hunter": 70,
 }
 
 

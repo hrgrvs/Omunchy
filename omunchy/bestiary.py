@@ -4,11 +4,11 @@ from __future__ import annotations
 
 # kind, short name, one-line behavior — keep each line readable on 16:9.
 TROGGLE_GUIDE: tuple[tuple[str, str, str], ...] = (
-    ("wander", "Wander", "Walks around at random."),
-    ("chase", "Chase", "Follows you."),
-    ("fire", "Fire-breath", "Lights the square in front."),
+    ("wander", "Wander", "Walks at random; bumps Munchy back (safe)."),
+    ("chase", "Chase", "Follows Munchy; big eyes track him."),
+    ("fire", "Fire-breath", "Burns the front square; Munchy loses a life on it."),
     ("exploder", "Exploder", "Pops on side-adjacent squares after a warning."),
-    ("hunter", "Hunter", "Eats other Troggles; still hurts you on contact."),
+    ("hunter", "Hunter", "Eats other Troggles; still hurts Munchy on contact."),
 )
 
 TITLE_MENU = ("Play", "Troggles")

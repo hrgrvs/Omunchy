@@ -83,14 +83,9 @@ class Rule:
         return self.mode == "pairings" and self.param is not None and pair_sum_correct(a, b, self.param)
 
 
-def resolve_play_mode(selected: str, level: int) -> str:
-    del level
-    return selected
-
-
 def rule_for(selected_mode: str, level: int) -> Rule:
     """Build a rule for a 1-based level."""
-    mode = resolve_play_mode(selected_mode, level)
+    mode = selected_mode
     idx = level - 1
     if mode == "multiples":
         factor, max_n = MULTIPLES_STEPS[min(idx, len(MULTIPLES_STEPS) - 1)]

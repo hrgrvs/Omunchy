@@ -3,6 +3,8 @@ import unittest
 
 from omunchy.constants import TITLE
 from omunchy.title_art import (
+    BLURB_A,
+    BLURB_B,
     CONTROLS_HINT,
     LICENSE_LINE,
     TAGLINE,
@@ -25,6 +27,8 @@ class TitleArtTests(unittest.TestCase):
             self.assertIn("X", "".join(rows))
         self.assertLess(logo_width(), 1280)
         self.assertIn("2–5", TAGLINE)
+        self.assertIn("Munchy", BLURB_A)
+        self.assertIn("Wanderers", BLURB_B)
         self.assertIn("Esc", CONTROLS_HINT)
         self.assertIn("F11", CONTROLS_HINT)
         self.assertIn("Damon Hargraves", LICENSE_LINE)

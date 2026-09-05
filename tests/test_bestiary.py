@@ -19,12 +19,17 @@ class BestiaryTests(unittest.TestCase):
     def test_blurbs_match_kid_friendly_behaviors(self) -> None:
         blurbs = {kind: blurb.lower() for kind, _name, blurb in TROGGLE_GUIDE}
         self.assertIn("random", blurbs["wander"])
+        self.assertIn("munchy", blurbs["wander"])
+        self.assertIn("bump", blurbs["wander"])
         self.assertIn("follow", blurbs["chase"])
+        self.assertIn("eye", blurbs["chase"])
         self.assertIn("front", blurbs["fire"])
+        self.assertIn("munchy", blurbs["fire"])
         self.assertIn("warning", blurbs["exploder"])
         self.assertIn("side", blurbs["exploder"])
         self.assertIn("eats", blurbs["hunter"])
         self.assertIn("hurt", blurbs["hunter"])
+        self.assertIn("munchy", blurbs["hunter"])
         for _kind, _name, blurb in TROGGLE_GUIDE:
             self.assertLessEqual(len(blurb), 64)
 

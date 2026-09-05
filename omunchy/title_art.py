@@ -18,8 +18,8 @@ from omunchy.constants import (
 
 TITLE_WORD = "OMUNCHY"
 TAGLINE = "A math arcade for grades 2–5"
-BLURB_A = "Munch every number that matches the rule."
-BLURB_B = "Wrong munches and Troggles cost a life."
+BLURB_A = "Steer Munchy. Munch every number that matches the rule."
+BLURB_B = "Wrong munches, fire, and most Troggles cost a life. Wanderers only bump."
 START_HINT = "Press ENTER or SPACE"
 CONTROLS_HINT = "←→ menu    Enter play    T Troggles    Esc / Q quit    F11    M mute"
 LICENSE_LINE = "MIT License  ·  Copyright Damon Hargraves"

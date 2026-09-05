@@ -1,6 +1,6 @@
 # Omunchy
 
-Math arcade for grades 2–5. Munch the numbers that match the rule; dodge Troggles. The title screen uses an animated blocky **OMUNCHY** logo (wave, pop-in, color cycle) — no ASCII doodles.
+Math arcade for grades 2–5. Steer **Munchy** to munch the numbers that match the rule; dodge Troggles. The title screen uses an animated blocky **OMUNCHY** logo (wave, pop-in, color cycle) — no ASCII doodles.
 
 The board starts at **4×5** and grows every two levels up to **6×8**. Each mode+level plays the same way every time: same rule, same board size, same Troggle mix, and the same number layout.
 
@@ -16,11 +16,11 @@ Every three cleared levels you pick a wearable from a short list (hat, crown, ca
 
 Open **Troggles** from the title screen or the pause menu to see each type with its sprite and a short description. Troggles unlock slowly and move at a kid-fair pace:
 
-- **Wander** — walks around at random
-- **Chase** — follows you (with gaps so you can escape)
-- **Fire-breath** — lights the single square in front of it
-- **Exploder** — pops if you stand on a side-adjacent square (up/down/left/right; diagonal is safe), after a short warning
-- **Hunter** — eats other Troggles; still hurts you on contact
+- **Wander** — walks around at random; bumps Munchy back instead of costing a life
+- **Chase** — follows Munchy (with gaps so you can escape); big eyes track him
+- **Fire-breath** — lights the square in front; up to two cells stay burning (oldest goes out first). Standing on fire costs a life
+- **Exploder** — pops if Munchy stands on a side-adjacent square (up/down/left/right; diagonal is safe), after a short warning
+- **Hunter** — eats other Troggles; still hurts Munchy on contact
 
 Starts **fullscreen** on a 16:9 logical frame (1280×720) so it fills a typical laptop. Pixel art scales with nearest-neighbor / `SCALED` letterboxing. Press **F11** for a window, **Esc** or **Q** on the title screen to quit. Same on Mac and Omarchy.
 

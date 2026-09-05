@@ -149,17 +149,83 @@ def make_wrong() -> list[float]:
 
 
 def make_hit() -> list[float]:
-    thud = overlay(
-        crunch(0.12, 0.45),
-        tone(90, 0.22, wave_fn=sine, volume=0.55, attack=0.002, release=0.14, slide=-0.45),
-        tone(160, 0.16, wave_fn=triangle, volume=0.22, attack=0.002, release=0.1, slide=-0.5),
+    """Longer, louder 'gotcha' when a Troggle/fire eats Munchy — cartoon, not scary."""
+    impact = overlay(
+        crunch(0.24, 0.88),
+        tone(68, 0.40, wave_fn=sine, volume=0.74, attack=0.002, release=0.24, slide=-0.58),
+        tone(132, 0.26, wave_fn=triangle, volume=0.42, attack=0.002, release=0.16, slide=-0.62),
+        tone(210, 0.12, wave_fn=square, volume=0.16, attack=0.002, release=0.08, slide=-0.4),
     )
-    return thud
+    oof = overlay(
+        tone(196, 0.22, wave_fn=square, volume=0.20, attack=0.012, release=0.14, slide=-0.16),
+        tone(147, 0.30, wave_fn=triangle, volume=0.34, attack=0.014, release=0.18, slide=-0.20),
+        tone(98, 0.36, wave_fn=sine, volume=0.30, attack=0.02, release=0.20, slide=-0.10),
+    )
+    wobble = overlay(
+        tone(midi_freq(55), 0.32, wave_fn=triangle, volume=0.20, attack=0.02, release=0.22, slide=-0.08),
+        tone(midi_freq(62), 0.24, volume=0.14, attack=0.03, release=0.18),
+    )
+    return concat(impact, rest(0.05), overlay(oof, concat(rest(0.06), wobble)))
+
+
+def make_spawn_wander() -> list[float]:
+    """Curious woodblock toot — small wanderer is nearby."""
+    return overlay(
+        tone(midi_freq(72), 0.10, wave_fn=triangle, volume=0.36, attack=0.004, release=0.07),
+        concat(rest(0.08), tone(midi_freq(79), 0.14, wave_fn=triangle, volume=0.30, attack=0.006, release=0.10)),
+    )
+
+
+def make_spawn_chase() -> list[float]:
+    """Quick kid-friendly 'uh-oh' as the chaser appears."""
+    return concat(
+        tone(midi_freq(76), 0.09, wave_fn=square, volume=0.22, attack=0.004, release=0.05),
+        tone(midi_freq(71), 0.12, wave_fn=square, volume=0.20, attack=0.004, release=0.07),
+        tone(midi_freq(67), 0.16, wave_fn=triangle, volume=0.24, attack=0.006, release=0.10),
+    )
+
+
+def make_spawn_fire() -> list[float]:
+    """Soft whoosh + sparkle — fire-breath is coming."""
+    return overlay(
+        crunch(0.20, 0.26),
+        tone(220, 0.22, wave_fn=sine, volume=0.16, attack=0.04, release=0.12, slide=0.35),
+        concat(rest(0.10), tone(midi_freq(84), 0.12, volume=0.18, attack=0.002, release=0.10)),
+        concat(rest(0.16), tone(midi_freq(88), 0.10, volume=0.12, attack=0.002, release=0.08)),
+    )
+
+
+def make_spawn_exploder() -> list[float]:
+    """Fuse ticks — exploder is about to hop on."""
+    tick = lambda freq, dur: tone(freq, dur, wave_fn=square, volume=0.18, attack=0.002, release=0.03)
+    return concat(
+        tick(880, 0.05),
+        rest(0.07),
+        tick(880, 0.05),
+        rest(0.07),
+        tick(988, 0.06),
+        rest(0.05),
+        overlay(
+            tone(midi_freq(60), 0.14, wave_fn=triangle, volume=0.22, attack=0.004, release=0.08),
+            tone(midi_freq(72), 0.12, volume=0.14, attack=0.004, release=0.08),
+        ),
+    )
+
+
+def make_spawn_hunter() -> list[float]:
+    """Low gulp / boing — hunter incoming."""
+    return overlay(
+        tone(90, 0.18, wave_fn=sine, volume=0.40, attack=0.008, release=0.10, slide=-0.25),
+        tone(140, 0.14, wave_fn=triangle, volume=0.22, attack=0.01, release=0.08, slide=-0.30),
+        concat(
+            rest(0.12),
+            tone(midi_freq(55), 0.20, wave_fn=triangle, volume=0.20, attack=0.02, release=0.12, slide=0.15),
+        ),
+    )
 
 
 def make_level_clear() -> list[float]:
     notes = [72, 76, 79, 84]  # C5 E5 G5 C6
-    parts: list[list[float]] = []
     cursor = 0.0
     layers: list[list[float]] = []
     for i, note in enumerate(notes):
@@ -168,7 +234,6 @@ def make_level_clear() -> list[float]:
         if i == len(notes) - 1:
             layers.append(concat(rest(cursor), tone(midi_freq(note + 12), 0.28, volume=0.14, attack=0.01, release=0.16)))
         cursor += 0.12
-        parts.append(start)
     return overlay(*layers)
 
 
@@ -270,6 +335,11 @@ SOUNDS = {
     "title.wav": make_title,
     "celebrate.wav": make_celebrate,
     "bg_loop.wav": make_bg_loop,
+    "spawn_wander.wav": make_spawn_wander,
+    "spawn_chase.wav": make_spawn_chase,
+    "spawn_fire.wav": make_spawn_fire,
+    "spawn_exploder.wav": make_spawn_exploder,
+    "spawn_hunter.wav": make_spawn_hunter,
 }
 
 

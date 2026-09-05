@@ -1,17 +1,22 @@
 import random
 import unittest
 
-from omunchy.constants import EXPLODE_WINDUP, FIRE_DURATION, FIRE_WINDUP
+from omunchy.constants import EXPLODE_WINDUP, FIRE_BREATH, FIRE_DURATION, FIRE_WINDUP, MAX_ACTIVE_FIRES
 from omunchy.entities import (
+    FireField,
     Muncher,
     Troggle,
     apply_hunter_eats,
+    apply_ignitions,
+    bounce_from_wander,
     front_cell,
     is_cardinal_adjacent,
+    look_toward,
     player_hits_hazard,
     spawn_troggles,
     troggle_interval_for,
     troggle_kinds_for_level,
+    wander_at,
 )
 
 
@@ -61,11 +66,19 @@ class FireTests(unittest.TestCase):
         self.assertFalse(t.is_firing)
         t.fire_windup = 0.001
         t.tick_specials(0.02, (0, 0), 6, 8)
+        self.assertEqual(t.just_ignited, (1, 2))
         self.assertTrue(t.is_firing)
-        self.assertAlmostEqual(t.fire_active, FIRE_DURATION)
-        self.assertTrue(player_hits_hazard((1, 2), [t], 6, 8))
-        self.assertFalse(player_hits_hazard((1, 3), [t], 6, 8))
-        self.assertFalse(player_hits_hazard((0, 1), [t], 6, 8))
+        self.assertAlmostEqual(t.fire_active, FIRE_BREATH)
+        fires = FireField()
+        apply_ignitions([t], fires, 6, 8)
+        self.assertTrue(fires.is_burning((1, 2)))
+        self.assertTrue(player_hits_hazard((1, 2), [t], 6, 8, fires))
+        self.assertFalse(player_hits_hazard((1, 3), [t], 6, 8, fires))
+        self.assertFalse(player_hits_hazard((0, 1), [t], 6, 8, fires))
+        # Linger outlasts the short breath pose and still kills Munchy.
+        t.fire_active = 0
+        self.assertGreater(FIRE_DURATION, FIRE_BREATH)
+        self.assertTrue(player_hits_hazard((1, 2), [t], 6, 8, fires))
 
     def test_fire_skipped_when_front_is_off_board(self) -> None:
         t = Troggle(row=0, col=0, kind="fire", heading=(-1, 0))
@@ -143,6 +156,65 @@ class RosterTests(unittest.TestCase):
         self.assertIn("fire", troggle_kinds_for_level(5))
         self.assertIn("exploder", troggle_kinds_for_level(7))
         self.assertIn("hunter", troggle_kinds_for_level(9))
+
+
+class FireFieldTests(unittest.TestCase):
+    def test_max_two_cells_oldest_goes_out(self) -> None:
+        self.assertEqual(MAX_ACTIVE_FIRES, 2)
+        field = FireField()
+        self.assertTrue(field.ignite(0, 0, 6, 8))
+        self.assertTrue(field.ignite(0, 1, 6, 8))
+        self.assertTrue(field.ignite(1, 1, 6, 8))
+        self.assertFalse(field.is_burning((0, 0)))
+        self.assertTrue(field.is_burning((0, 1)))
+        self.assertTrue(field.is_burning((1, 1)))
+        self.assertEqual(len(field.flames), 2)
+
+    def test_reignite_same_cell_does_not_eat_a_slot(self) -> None:
+        field = FireField()
+        field.ignite(2, 2, 6, 8, duration=0.4)
+        field.ignite(2, 3, 6, 8, duration=0.4)
+        field.ignite(2, 2, 6, 8, duration=1.2)
+        self.assertEqual(len(field.flames), 2)
+        self.assertTrue(field.is_burning((2, 2)))
+        self.assertAlmostEqual(field.flames[0].remaining, 1.2)
+
+    def test_flames_expire(self) -> None:
+        field = FireField()
+        field.ignite(1, 1, 6, 8, duration=0.2)
+        field.tick(0.25)
+        self.assertFalse(field.is_burning((1, 1)))
+
+
+class WanderBumpTests(unittest.TestCase):
+    def test_wander_contact_is_not_a_hit(self) -> None:
+        wander = Troggle(row=2, col=2, kind="wander")
+        self.assertFalse(player_hits_hazard((2, 2), [wander], 6, 8))
+        self.assertIs(wander_at((2, 2), [wander]), wander)
+        chase = Troggle(row=2, col=3, kind="chase")
+        self.assertTrue(player_hits_hazard((2, 3), [chase], 6, 8))
+
+    def test_bounce_returns_munchy_to_the_previous_cell(self) -> None:
+        munchy = Muncher(row=2, col=3, prev_row=2, prev_col=2)
+        wander = Troggle(row=2, col=3, kind="wander", heading=(1, 0))
+        self.assertTrue(bounce_from_wander(munchy, wander, 6, 8))
+        self.assertEqual(munchy.pos, (2, 2))
+        self.assertNotEqual(munchy.pos, wander.pos)
+
+    def test_bounce_pushes_away_when_there_is_no_previous_cell(self) -> None:
+        munchy = Muncher(row=0, col=0, prev_row=0, prev_col=0)
+        wander = Troggle(row=0, col=0, kind="wander", heading=(1, 0))
+        self.assertTrue(bounce_from_wander(munchy, wander, 6, 8))
+        self.assertNotEqual(munchy.pos, (0, 0))
+        self.assertTrue(0 <= munchy.row < 6 and 0 <= munchy.col < 8)
+
+
+class LookTowardTests(unittest.TestCase):
+    def test_pupils_point_at_munchy(self) -> None:
+        self.assertEqual(look_toward((2, 2), (2, 5)), (1, 0))
+        self.assertEqual(look_toward((2, 2), (0, 2)), (0, -1))
+        self.assertEqual(look_toward((2, 2), (4, 0)), (-1, 1))
+        self.assertEqual(look_toward((2, 2), (2, 2)), (0, 0))
 
 
 class PaceTests(unittest.TestCase):

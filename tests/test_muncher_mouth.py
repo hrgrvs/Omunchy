@@ -8,8 +8,8 @@ import unittest
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
-from omunchy.constants import CELL_DIGIT, GOLD, WINDOW_H, WINDOW_W
-from omunchy.sprites import PEEK_MOUTH, muncher_surface
+from omunchy.constants import CELL_DIGIT, GOLD, MUNCHY_SPRITE_SIZE, WINDOW_H, WINDOW_W
+from omunchy.sprites import PEEK_MOUTH, muncher_surface, munchy_sprite_center
 from omunchy.wearables import BY_ID, Outfit
 
 
@@ -18,11 +18,11 @@ def _near(rgb: tuple[int, int, int], target: tuple[int, int, int], slack: int = 
 
 
 def _scaled_mouth_center() -> tuple[int, int]:
-    """Pixel in the 56×56 sprite that sits in the peek hole."""
+    """Pixel in the scaled sprite that sits in the peek hole."""
     x, y, w, h = PEEK_MOUTH
-    # 16×16 → 56×56 is a 3.5× nearest-neighbor scale.
-    sx = int((x + w / 2) * 3.5)
-    sy = int((y + h / 2) * 3.5)
+    scale = MUNCHY_SPRITE_SIZE / 16
+    sx = int((x + w / 2) * scale)
+    sy = int((y + h / 2) * scale)
     return sx, sy
 
 
@@ -197,10 +197,7 @@ class MuncherMouthPlayfieldTests(unittest.TestCase):
 
         left, top, _w, _h = grid_geometry(game.board.rows, game.board.cols)
         rect = cell_rect(game.player.row, game.player.col, left, top)
-        # Sprite is shifted down 8px from the cell center.
-        mx = rect.centerx
-        my = rect.centery + 8
-        # Sample the mouth region of the 56×56 sprite (center-ish, a bit low).
+        mx, my = munchy_sprite_center(rect.center)
         mouth = game.screen.get_at((mx, my + 6))
         self.assertGreater(mouth[3] if len(mouth) > 3 else 255, 200)
         # No leftover high-contrast digit on a munched plate.

@@ -1,6 +1,6 @@
 import unittest
 
-from omunchy.rules import factors_of, is_prime, resolve_play_mode, rule_for
+from omunchy.rules import factors_of, is_prime, rule_for
 
 
 class PrimeTests(unittest.TestCase):
@@ -43,10 +43,6 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule.title, "Equals 10")
         self.assertTrue(rule.is_correct(10))
         self.assertFalse(rule.is_correct(9))
-
-    def test_resolve_play_mode_is_the_selected_mode(self) -> None:
-        self.assertEqual(resolve_play_mode("pairings", 3), "pairings")
-        self.assertEqual(resolve_play_mode("multiples", 1), "multiples")
 
     def test_mixed_is_gone(self) -> None:
         with self.assertRaises(ValueError):

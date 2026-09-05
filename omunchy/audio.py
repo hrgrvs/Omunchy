@@ -14,11 +14,26 @@ REQUIRED_SOUNDS = (
     "game_over",
     "title",
     "celebrate",
+    "spawn_wander",
+    "spawn_chase",
+    "spawn_fire",
+    "spawn_exploder",
+    "spawn_hunter",
 )
 
 BG_LOOP = "bg_loop"
 BG_VOLUME = 0.18
 SFX_VOLUME = 0.72
+# Got-eaten cue is longer and sits above the other SFX.
+HIT_VOLUME = 0.96
+SFX_VOLUMES = {
+    "hit": HIT_VOLUME,
+}
+
+
+def spawn_sound_name(kind: str) -> str:
+    name = f"spawn_{kind}"
+    return name if name in REQUIRED_SOUNDS else "spawn_wander"
 
 
 class Audio:
@@ -58,7 +73,7 @@ class Audio:
                     sound.set_volume(BG_VOLUME)
                     self._bg = sound
                 else:
-                    sound.set_volume(SFX_VOLUME)
+                    sound.set_volume(SFX_VOLUMES.get(name, SFX_VOLUME))
                     self._sounds[name] = sound
             except Exception:
                 continue

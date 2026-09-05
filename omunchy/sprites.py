@@ -16,9 +16,11 @@ from omunchy.constants import (
     HUNTER,
     HUNTER_DARK,
     MAGENTA,
+    MUNCHY_SPRITE_SIZE,
     ORANGE,
     PURPLE,
     RED,
+    TROGGLE_SPRITE_SIZES,
     WHITE,
     YELLOW,
 )
@@ -111,9 +113,19 @@ def muncher_surface(
     if facing_x < 0:
         src = pygame.transform.flip(src, True, False)
 
-    sprite = _scale(src, 56)
+    sprite = _scale(src, MUNCHY_SPRITE_SIZE)
     _CACHE[key] = sprite
     return sprite
+
+
+def munchy_sprite_center(cell_center: tuple[int, int], hop: int = 0) -> tuple[int, int]:
+    """Place the sprite so the open mouth sits on the cell (and its number)."""
+    scale = MUNCHY_SPRITE_SIZE / 16
+    mx, my, _mw, mh = PEEK_MOUTH
+    mouth_cy = (my + mh / 2) * scale
+    ox = cell_center[0]
+    oy = int(cell_center[1] + hop + MUNCHY_SPRITE_SIZE / 2 - mouth_cy)
+    return ox, oy
 
 
 def _draw_wander(src: pygame.Surface, frame: int) -> None:
@@ -137,22 +149,29 @@ def _draw_wander(src: pygame.Surface, frame: int) -> None:
     pygame.draw.rect(src, dark, (9, 13 - (1 - lift), 3, 3))
 
 
-def _draw_chase(src: pygame.Surface, frame: int) -> None:
+def _draw_chase(src: pygame.Surface, frame: int, look_x: int = 0, look_y: int = 0) -> None:
+    """Magenta chaser with oversized eyes whose pupils track Munchy."""
     body, dark = MAGENTA, (96, 24, 64)
-    pygame.draw.rect(src, dark, (3, 3, 10, 10))
-    pygame.draw.rect(src, body, (4, 4, 8, 8))
+    lx = max(-1, min(1, look_x))
+    ly = max(-1, min(1, look_y))
+    pygame.draw.rect(src, dark, (2, 4, 12, 9))
+    pygame.draw.rect(src, body, (3, 5, 10, 7))
     pygame.draw.rect(src, dark, (2, 1, 3, 3))
     pygame.draw.rect(src, dark, (11, 1, 3, 3))
     pygame.draw.rect(src, body, (2, 1, 3, 2))
     pygame.draw.rect(src, body, (11, 1, 3, 2))
-    pygame.draw.rect(src, WHITE, (5, 5, 2, 2))
-    pygame.draw.rect(src, WHITE, (9, 5, 2, 2))
-    pygame.draw.rect(src, RED, (5, 6, 2, 1))
-    pygame.draw.rect(src, RED, (9, 6, 2, 1))
-    pygame.draw.rect(src, (40, 10, 20), (6, 9, 4, 2))
+    # Big sclera — most of the face is eyes so kids can see the look.
+    pygame.draw.rect(src, (20, 8, 16), (2, 3, 6, 6))
+    pygame.draw.rect(src, (20, 8, 16), (8, 3, 6, 6))
+    pygame.draw.rect(src, WHITE, (3, 4, 5, 5))
+    pygame.draw.rect(src, WHITE, (8, 4, 5, 5))
+    # Pupils stay inside each 5×5 eye.
+    pygame.draw.rect(src, (20, 20, 40), (4 + lx, 5 + ly, 2, 2))
+    pygame.draw.rect(src, (20, 20, 40), (9 + lx, 5 + ly, 2, 2))
+    pygame.draw.rect(src, (40, 10, 20), (6, 10, 4, 2))
     if frame % 2:
-        pygame.draw.rect(src, CREAM, (6, 9, 1, 2))
-        pygame.draw.rect(src, CREAM, (9, 9, 1, 2))
+        pygame.draw.rect(src, CREAM, (6, 10, 1, 2))
+        pygame.draw.rect(src, CREAM, (9, 10, 1, 2))
     lift = 1 if frame % 2 == 0 else 0
     pygame.draw.rect(src, dark, (4, 13 - lift, 3, 3))
     pygame.draw.rect(src, dark, (9, 13 - (1 - lift), 3, 3))
@@ -218,15 +237,24 @@ def _draw_hunter(src: pygame.Surface, frame: int) -> None:
     pygame.draw.rect(src, dark, (9, 13 - (1 - lift), 4, 3))
 
 
-def troggle_surface(kind: str, frame: int, facing_x: int, flash: bool = False) -> pygame.Surface:
-    key = ("troggle", kind, frame, facing_x, flash)
+def troggle_surface(
+    kind: str,
+    frame: int,
+    facing_x: int,
+    flash: bool = False,
+    look_x: int = 0,
+    look_y: int = 0,
+) -> pygame.Surface:
+    key = ("troggle", kind, frame, facing_x, flash, look_x, look_y)
     cached = _CACHE.get(key)
     if cached is not None:
         return cached
 
     src = pygame.Surface((16, 16), pygame.SRCALPHA)
     if kind == "chase":
-        _draw_chase(src, frame)
+        # Flip happens after draw; invert look_x so pupils stay on Munchy.
+        draw_lx = -look_x if facing_x < 0 else look_x
+        _draw_chase(src, frame, draw_lx, look_y)
     elif kind == "fire":
         _draw_fire(src, frame)
     elif kind == "exploder":
@@ -239,7 +267,8 @@ def troggle_surface(kind: str, frame: int, facing_x: int, flash: bool = False) -
     if facing_x < 0:
         src = pygame.transform.flip(src, True, False)
 
-    sprite = _scale(src, 56)
+    size = TROGGLE_SPRITE_SIZES.get(kind, 48)
+    sprite = _scale(src, size)
     _CACHE[key] = sprite
     return sprite
 
