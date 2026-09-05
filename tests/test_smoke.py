@@ -60,6 +60,15 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertEqual(game.level, 4)
         self.assertIsNotNone(game.board)
         self.assertEqual((game.board.rows, game.board.cols), (4, 5))
+
+        game.level = 3
+        game.state = CLEAR_ST
+        game._advance_from_clear()
+        self.assertEqual(game.state, CELEBRATE_ST)
+        self.assertEqual(game.level, 4)
+        game._begin_level()
+        self.assertEqual(game.state, INTRO_ST)
+        self.assertEqual((game.board.rows, game.board.cols), (4, 5))
         game.level = 10
         game._begin_level()
         self.assertEqual((game.board.rows, game.board.cols), (6, 8))
