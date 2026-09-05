@@ -3,6 +3,7 @@ import unittest
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+os.environ.setdefault("OMUNCHY_SKIP_UPDATE", "1")
 
 
 class PygameSmokeTests(unittest.TestCase):

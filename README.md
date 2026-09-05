@@ -96,6 +96,20 @@ python -m omunchy
 
 Uses system pygame when available, otherwise sets up a venv. Prefer `python -m omunchy` after the pacman install above.
 
+## Updates
+
+Each launch from a **git clone** checks `origin` for updates (prefers `main`) and fast-forwards when it can (`git pull --ff-only`). If files changed, the process restarts itself so the new code is what you play. That needs **git** and a working network; the check gives up after about 12 seconds so a hung network cannot freeze startup.
+
+If you are offline, git is missing, this is not a clone, or your local copy has diverged from `origin`, the game still starts with the current code. It never force-pushes or throws away local changes.
+
+First-time install is still a normal `git clone` (see Mac / Omarchy above). Zip copies without a `.git` folder skip the check.
+
+To skip (tests, or a locked copy):
+
+```bash
+OMUNCHY_SKIP_UPDATE=1 python -m omunchy
+```
+
 ## Controls
 
 - Arrows / WASD / IJKL — tap to move one cell (also pick a wearable). Every tap steps immediately; holding does not walk.
