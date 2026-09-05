@@ -209,6 +209,23 @@ def make_title() -> list[float]:
     return overlay(*layers)
 
 
+
+def make_celebrate() -> list[float]:
+    # Short cheerful fanfare for milestone celebrations.
+    notes = [(72, 0.12), (76, 0.12), (79, 0.12), (84, 0.28)]
+    layers: list[list[float]] = []
+    cursor = 0.0
+    for note, dur in notes:
+        layers.append(
+            concat(
+                rest(cursor),
+                tone(midi_freq(note), dur, volume=0.22, attack=0.01, release=0.08),
+                tone(midi_freq(note + 7), dur * 0.8, volume=0.1, attack=0.01, release=0.08),
+            )
+        )
+        cursor += dur * 0.85
+    return overlay(*layers)
+
 def make_bg_loop() -> list[float]:
     # Quiet 2-bar C-major arpeggio, loop-friendly (starts/ends near zero).
     pattern = [60, 67, 72, 76, 72, 67, 64, 67]
@@ -251,6 +268,7 @@ SOUNDS = {
     "level_clear.wav": make_level_clear,
     "game_over.wav": make_game_over,
     "title.wav": make_title,
+    "celebrate.wav": make_celebrate,
     "bg_loop.wav": make_bg_loop,
 }
 

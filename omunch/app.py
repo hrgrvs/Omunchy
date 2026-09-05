@@ -70,7 +70,7 @@ def _font(size: int, bold: bool = False) -> pygame.font.Font:
 class Game:
     def __init__(self) -> None:
         pygame.display.set_caption(TITLE)
-        self.screen = pygame.display.set_mode((WINDOW_W, WINDOW_H), pygame.SCALED | pygame.RESIZABLE)
+        self.screen = self._make_screen(fullscreen=False)
         self.clock = pygame.time.Clock()
         self.audio = Audio()
         self.rng = random.Random()
@@ -99,6 +99,8 @@ class Game:
         self.freeze = 0.0
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
+        self.celebrate_banner = "Nice!"
+        self.confetti: list[int] = []
         self.anim = 0.0
         self.held: set[int] = set()
 
@@ -125,6 +127,16 @@ class Game:
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
         self.state = INTRO_ST
+
+
+    def _make_screen(self, fullscreen: bool = False):
+        flags = pygame.RESIZABLE
+        if fullscreen:
+            flags = pygame.FULLSCREEN
+        try:
+            return pygame.display.set_mode((WINDOW_W, WINDOW_H), pygame.SCALED | flags)
+        except pygame.error:
+            return pygame.display.set_mode((WINDOW_W, WINDOW_H), flags)
 
     def run(self) -> None:
         while self.running:
@@ -155,8 +167,7 @@ class Game:
             return
         if key == pygame.K_F11:
             self.fullscreen = not self.fullscreen
-            flags = pygame.SCALED | pygame.FULLSCREEN if self.fullscreen else pygame.SCALED | pygame.RESIZABLE
-            self.screen = pygame.display.set_mode((WINDOW_W, WINDOW_H), flags)
+            self.screen = self._make_screen(fullscreen=self.fullscreen)
             return
         if key == pygame.K_q and self.state in (TITLE_ST, OVER_ST, PAUSE_ST):
             if self.state == PAUSE_ST:
@@ -171,9 +182,9 @@ class Game:
                 self.state = MODE_ST
             return
         if self.state == MODE_ST:
-            if key in (pygame.K_UP, pygame.K_w):
+            if key in (pygame.K_UP, pygame.K_w, pygame.K_i):
                 self.mode_index = (self.mode_index - 1) % len(MODES)
-            elif key in (pygame.K_DOWN, pygame.K_s):
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_k):
                 self.mode_index = (self.mode_index + 1) % len(MODES)
             elif key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.start_run(MODES[self.mode_index])
@@ -202,15 +213,7 @@ class Game:
             return
         if self.state == CLEAR_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
-                cleared = self.level
-                self.level += 1
-                if is_celebration_level(cleared):
-                    self.state = CELEBRATE_ST
-                    self.banner_timer = 0.0
-                    self.celebrate_banner = banner_for_level(cleared)
-                    self.audio.play("level_clear")
-                else:
-                    self._begin_level()
+                self._advance_from_clear()
             return
         if self.state == CELEBRATE_ST:
             if key in (pygame.K_SPACE, pygame.K_RETURN):
@@ -222,6 +225,21 @@ class Game:
             elif key == pygame.K_ESCAPE:
                 self.state = TITLE_ST
                 self.audio.play("title")
+
+
+    def _advance_from_clear(self) -> None:
+        """Leave CLEAR_ST exactly once (timer or key)."""
+        if self.state != CLEAR_ST:
+            return
+        cleared = self.level
+        self.level += 1
+        if is_celebration_level(cleared):
+            self.state = CELEBRATE_ST
+            self.banner_timer = 0.0
+            self.celebrate_banner = banner_for_level(cleared)
+            self.audio.play("celebrate")
+        else:
+            self._begin_level()
 
     def _try_move_key(self, key: int) -> None:
         mapping = {
@@ -302,15 +320,7 @@ class Game:
         self.banner_timer += dt
         if self.state == CLEAR_ST:
             if self.banner_timer >= 1.2:
-                cleared = self.level
-                self.level += 1
-                if is_celebration_level(cleared):
-                    self.state = CELEBRATE_ST
-                    self.banner_timer = 0.0
-                    self.celebrate_banner = banner_for_level(cleared)
-                    self.audio.play("level_clear")
-                else:
-                    self._begin_level()
+                self._advance_from_clear()
             return
         if self.state == CELEBRATE_ST:
             if self.banner_timer >= CELEBRATE_SECONDS:
@@ -443,8 +453,7 @@ class Game:
         self.screen.blit(veil, (0, 0))
 
     def _draw_title(self) -> None:
-        draw_outlined_text(self.screen, "NUMBER", self.font_xl, GOLD, (WINDOW_W // 2, 150))
-        draw_outlined_text(self.screen, "MUNCHERS", self.font_xl, YELLOW, (WINDOW_W // 2, 214))
+        draw_outlined_text(self.screen, "OMUNCH", self.font_xl, GOLD, (WINDOW_W // 2, 180))
         draw_outlined_text(
             self.screen,
             "A math arcade for grades 2–5",
@@ -573,6 +582,22 @@ class Game:
         )
 
 
+
+    def _start_celebrate(self) -> None:
+        """Enter celebration (also used by smoke tests)."""
+        self.state = CELEBRATE_ST
+        self.banner_timer = 0.0
+        self.celebrate_banner = banner_for_level(self.level if self.level % 3 == 0 else 3)
+        self.confetti = list(range(48))
+        self.audio.play("celebrate")
+
+    def _finish_celebrate(self) -> None:
+        """Leave celebration and start the next level."""
+        if self.state != CELEBRATE_ST:
+            return
+        self.level += 1
+        self._begin_level()
+
     def _draw_celebrate(self) -> None:
         overlay = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
@@ -586,7 +611,7 @@ class Game:
             pygame.draw.rect(self.screen, c, (x, y, 6, 6))
         # bouncing muncher
         bounce = int(abs(__import__('math').sin(self.anim * 8)) * 18)
-        sprite = muncher_surface(int(self.anim * 10) % 2, chomp=True)
+        sprite = muncher_surface(int(self.anim * 10) % 2, 1, True, False)
         rect = sprite.get_rect(center=(WINDOW_W // 2, WINDOW_H // 2 + 40 - bounce))
         self.screen.blit(sprite, rect)
         draw_outlined_text(self.screen, self.celebrate_banner, self.font_xl, GOLD, (WINDOW_W // 2, WINDOW_H // 2 - 60))

@@ -19,6 +19,7 @@ class Actor:
         return self.row, self.col
 
 
+@dataclass
 class Muncher(Actor):
     facing: tuple[int, int] = (1, 0)
     chomp_timer: float = 0.0

@@ -13,6 +13,7 @@ REQUIRED_SOUNDS = (
     "level_clear",
     "game_over",
     "title",
+    "celebrate",
 )
 
 BG_LOOP = "bg_loop"
