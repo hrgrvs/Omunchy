@@ -1,16 +1,14 @@
-"""Muncher and Troggle movement / collision.
+"""Munchy and Troggle movement / collision.
 
 Troggle types
 -------------
-wander     Random walk (existing).
-chase      Seeks the player, with occasional wander so kids can escape (existing).
-fire       Wanders, then breathes fire onto the single square directly in front
-           (facing direction). Player on that cell while fire is active loses a life.
-exploder   If the player stands on a *cardinal* neighbor (up/down/left/right —
-           diagonal is safe), it telegraphs then explodes. 4-dir is the kid-fair
-           choice: you can stand diagonally without popping it.
-hunter     Hunts and eats other Troggles (removes them). Contact with the player
-           still costs a life.
+wander     Random walk. Contact *bounces* Munchy back — it does not cost a life.
+chase      Seeks Munchy, with occasional wander so kids can escape.
+fire       Wanders, then lights the square in front. Burning cells linger
+           (max two at a time, oldest out first) and cost a life.
+exploder   If Munchy stands on a *cardinal* neighbor (up/down/left/right —
+           diagonal is safe), it telegraphs then explodes.
+hunter     Hunts and eats other Troggles. Contact with Munchy still costs a life.
 """
 
 from __future__ import annotations
@@ -21,11 +19,14 @@ import random
 from omunchy.board import board_size_for_level
 from omunchy.constants import (
     EXPLODE_WINDUP,
+    FIRE_BREATH,
     FIRE_COOLDOWN,
     FIRE_DURATION,
     FIRE_WINDUP,
+    MAX_ACTIVE_FIRES,
     MAX_COLS,
     MAX_ROWS,
+    SPAWN_TELEGRAPH,
     TROGGLE_INTERVAL_FLOOR,
     TROGGLE_INTERVAL_START,
     TROGGLE_INTERVAL_STEP,
@@ -47,6 +48,81 @@ _KIND_INTERVAL_BIAS = {
 def is_cardinal_adjacent(a: tuple[int, int], b: tuple[int, int]) -> bool:
     """True when a and b share a side (4-dir). Diagonal is not adjacent."""
     return abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
+
+
+def look_toward(origin: tuple[int, int], target: tuple[int, int]) -> tuple[int, int]:
+    """Kid-readable pupil offset (-1/0/1, -1/0/1) from origin toward target."""
+    dr = target[0] - origin[0]
+    dc = target[1] - origin[1]
+    lx = 0 if dc == 0 else (1 if dc > 0 else -1)
+    ly = 0 if dr == 0 else (1 if dr > 0 else -1)
+    return lx, ly
+
+
+@dataclass
+class Flame:
+    """One lingering fire-breath cell."""
+
+    row: int
+    col: int
+    remaining: float
+
+
+@dataclass
+class FireField:
+    """Up to MAX_ACTIVE_FIRES burning cells; oldest is dropped first."""
+
+    flames: list[Flame] = field(default_factory=list)
+
+    def tick(self, dt: float) -> None:
+        for flame in self.flames:
+            flame.remaining -= dt
+        self.flames = [f for f in self.flames if f.remaining > 0]
+
+    def ignite(
+        self,
+        row: int,
+        col: int,
+        rows: int,
+        cols: int,
+        duration: float = FIRE_DURATION,
+    ) -> bool:
+        if not (0 <= row < rows and 0 <= col < cols):
+            return False
+        for flame in self.flames:
+            if flame.row == row and flame.col == col:
+                flame.remaining = max(flame.remaining, duration)
+                return True
+        if len(self.flames) >= MAX_ACTIVE_FIRES:
+            self.flames.pop(0)
+        self.flames.append(Flame(row, col, duration))
+        return True
+
+    def is_burning(self, pos: tuple[int, int]) -> bool:
+        r, c = pos
+        return any(f.row == r and f.col == c for f in self.flames)
+
+    def cells(self) -> set[tuple[int, int]]:
+        return {(f.row, f.col) for f in self.flames}
+
+
+@dataclass
+class IncomingTroggle:
+    """Troggle waiting just off the playfield with a warning timer."""
+
+    kind: str
+    row: int
+    col: int
+    heading: tuple[int, int]
+    interval: float
+    warn: float
+
+    def to_troggle(self, index: int = 0) -> Troggle:
+        t = Troggle(row=self.row, col=self.col, kind=self.kind, interval=self.interval)
+        t.heading = self.heading
+        t.move_timer = 0.85 + index * 0.28
+        t.fire_cooldown = 2.2 + index * 0.40
+        return t
 
 
 def front_cell(row: int, col: int, heading: tuple[int, int]) -> tuple[int, int]:
@@ -72,6 +148,14 @@ class Muncher(Actor):
     chomp_timer: float = 0.0
     iframe_timer: float = 0.0
     hop_timer: float = 0.0
+    prev_row: int = -1
+    prev_col: int = -1
+
+    def __post_init__(self) -> None:
+        if self.prev_row < 0:
+            self.prev_row = self.row
+        if self.prev_col < 0:
+            self.prev_col = self.col
 
     def can_move(self) -> bool:
         return self.chomp_timer <= 0
@@ -99,6 +183,7 @@ class Muncher(Actor):
             return False
         if dr or dc:
             self.facing = (dc, dr)
+        self.prev_row, self.prev_col = self.row, self.col
         self.row, self.col = nr, nc
         self.hop_timer = 0.12
         return True
@@ -115,6 +200,7 @@ class Troggle(Actor):
     explode_windup: float = 0.0
     exploded: bool = False
     just_boomed: bool = False
+    just_ignited: tuple[int, int] | None = None
     _others: tuple["Troggle", ...] = field(default=(), repr=False, compare=False)
 
     def front_cell(self) -> tuple[int, int]:
@@ -147,6 +233,7 @@ class Troggle(Actor):
 
     def tick_specials(self, dt: float, prey: tuple[int, int], rows: int, cols: int) -> None:
         self.just_boomed = False
+        self.just_ignited = None
         if self.kind == "fire":
             self._tick_fire(dt, rows, cols)
         elif self.kind == "exploder" and not self.exploded:
@@ -161,7 +248,8 @@ class Troggle(Actor):
             if self.fire_windup <= 0:
                 fr, fc = self.front_cell()
                 if 0 <= fr < rows and 0 <= fc < cols:
-                    self.fire_active = FIRE_DURATION
+                    self.just_ignited = (fr, fc)
+                    self.fire_active = FIRE_BREATH
                 self.fire_cooldown = FIRE_COOLDOWN
             return
         self.fire_cooldown = max(0.0, self.fire_cooldown - dt)
@@ -268,15 +356,67 @@ class Troggle(Actor):
         self._chase_step(nearest.pos, rng, rows, cols, wander_chance=0.08)
 
 
+def wander_at(pos: tuple[int, int], troggles: list[Troggle]) -> Troggle | None:
+    """Return a wanderer sharing this cell (contact is a bump, not a hit)."""
+    for troggle in troggles:
+        if troggle.kind == "wander" and troggle.pos == pos:
+            return troggle
+    return None
+
+
+def bounce_from_wander(player: Muncher, wanderer: Troggle, rows: int, cols: int) -> bool:
+    """Knock Munchy back to the previous cell, or away from the wanderer."""
+    candidates: list[tuple[int, int]] = []
+    prev = (player.prev_row, player.prev_col)
+    if prev != player.pos and prev != wanderer.pos:
+        candidates.append(prev)
+    dc, dr = wanderer.heading
+    candidates.append((player.row - dr, player.col - dc))
+    for ndr, ndc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        candidates.append((player.row + ndr, player.col + ndc))
+    seen: set[tuple[int, int]] = set()
+    for nr, nc in candidates:
+        if (nr, nc) in seen:
+            continue
+        seen.add((nr, nc))
+        if not (0 <= nr < rows and 0 <= nc < cols):
+            continue
+        if (nr, nc) == wanderer.pos or (nr, nc) == player.pos:
+            continue
+        old = player.pos
+        player.prev_row, player.prev_col = old
+        player.row, player.col = nr, nc
+        player.hop_timer = 0.14
+        step_r, step_c = nr - old[0], nc - old[1]
+        if step_r or step_c:
+            player.facing = (step_c, step_r)
+        return True
+    return False
+
+
+def apply_ignitions(troggles: list[Troggle], fires: FireField, rows: int, cols: int) -> None:
+    """Copy just-lit front cells onto the lingering fire field."""
+    for troggle in troggles:
+        if troggle.just_ignited is not None:
+            fires.ignite(*troggle.just_ignited, rows, cols)
+            troggle.just_ignited = None
+
+
 def player_hits_hazard(
     pos: tuple[int, int],
     troggles: list[Troggle],
     rows: int,
     cols: int,
+    fires: FireField | None = None,
 ) -> bool:
-    """True if the player should lose a life this frame (contact, fire, or boom)."""
+    """True if Munchy should lose a life (contact, lingering fire, or boom).
+
+    Wander contact is not a hit — callers bounce Munchy instead.
+    """
+    if fires is not None and fires.is_burning(pos):
+        return True
     for troggle in troggles:
-        if troggle.pos == pos:
+        if troggle.pos == pos and troggle.kind != "wander":
             return True
         if troggle.is_firing:
             fr, fc = troggle.front_cell()
@@ -285,6 +425,52 @@ def player_hits_hazard(
         if troggle.kind == "exploder" and troggle.just_boomed and is_cardinal_adjacent(troggle.pos, pos):
             return True
     return False
+
+
+def missing_roster_kinds(
+    level: int,
+    rows: int,
+    cols: int,
+    live_kinds: list[str],
+    incoming_kinds: list[str],
+) -> list[str]:
+    """Kinds the level still wants after hunter eats / exploders pop."""
+    intended = list(troggle_kinds_for_level(level)[: max_troggles_for(rows, cols, level)])
+    have = list(live_kinds) + list(incoming_kinds)
+    missing: list[str] = []
+    for kind in intended:
+        if kind in have:
+            have.remove(kind)
+        else:
+            missing.append(kind)
+    return missing
+
+
+def next_incoming(
+    kind: str,
+    level: int,
+    player: tuple[int, int],
+    occupied: set[tuple[int, int]],
+    rng: random.Random,
+    rows: int,
+    cols: int,
+    warn: float = SPAWN_TELEGRAPH,
+) -> IncomingTroggle | None:
+    """Pick a far edge cell and queue a telegraphing Troggle."""
+    spots = _spawn_spots(rows, cols, player, rng)
+    for spot in spots:
+        if spot in occupied or spot == player:
+            continue
+        heading = _inward_heading(spot[0], spot[1], rows, cols)
+        return IncomingTroggle(
+            kind=kind,
+            row=spot[0],
+            col=spot[1],
+            heading=heading,
+            interval=troggle_interval_for(level, kind),
+            warn=warn,
+        )
+    return None
 
 
 def apply_hunter_eats(troggles: list[Troggle]) -> list[Troggle]:

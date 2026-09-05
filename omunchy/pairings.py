@@ -90,7 +90,7 @@ def remaining_complements(cells: list[Any], target: int) -> int:
 
 @dataclass(frozen=True)
 class Carry:
-    """Number the muncher is holding after a grab."""
+    """Number Munchy is holding after a grab."""
 
     value: int
     label: str

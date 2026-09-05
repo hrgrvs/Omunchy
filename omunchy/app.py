@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 import random
 import sys
 
 import pygame
 
-from omunchy.audio import Audio
+from omunchy.audio import Audio, spawn_sound_name
 from omunchy.board import Board, generate_board
 from omunchy.constants import (
     BG,
@@ -31,6 +32,7 @@ from omunchy.constants import (
     GOLD,
     GREEN,
     grid_geometry,
+    HERO_NAME,
     HINT_H,
     HIT_IFRAMES,
     HUD_BG,
@@ -55,12 +57,20 @@ from omunchy.constants import (
     YELLOW,
 )
 from omunchy.entities import (
+    FireField,
+    IncomingTroggle,
     Muncher,
     Troggle,
     apply_hunter_eats,
+    apply_ignitions,
+    bounce_from_wander,
+    look_toward,
+    missing_roster_kinds,
+    next_incoming,
     player_hits_hazard,
     safe_player_spawn,
     spawn_troggles,
+    wander_at,
 )
 from omunchy.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
 from omunchy.pairings import Carry, WRONG_PAIR_COSTS_LIFE, apply_pairings_space, restore_carry
@@ -73,6 +83,7 @@ from omunchy.sprites import (
     eat_label_transform,
     fire_surface,
     muncher_surface,
+    munchy_sprite_center,
     troggle_surface,
 )
 from omunchy.title_art import (
@@ -222,6 +233,9 @@ class Game:
         self.pause_index = 0
         self.bestiary_back = TITLE_ST
         self.carried: Carry | None = None
+        self.fires = FireField()
+        self.incoming: list[IncomingTroggle] = []
+        self._spawn_cues: list[tuple[float, str]] = []
 
         self.audio.play("title")
         self.audio.play_bg()
@@ -256,12 +270,38 @@ class Game:
         self.player = Muncher(row=pr, col=pc)
         occupied.add((pr, pc))
         self.troggles = spawn_troggles(self.level, (pr, pc), spawn_rng, rows, cols)
+        self.fires = FireField()
+        self.incoming = []
+        self._queue_spawn_cues([t.kind for t in self.troggles])
         self.freeze = 0.35
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
         self.eat_fx = None
         self.carried = None
         self.state = INTRO_ST
+
+    def _queue_spawn_cues(self, kinds: list[str]) -> None:
+        """Stagger per-type warning cues so kids can tell who is arriving."""
+        delay = 0.0
+        seen: set[str] = set()
+        cues: list[tuple[float, str]] = []
+        for kind in kinds:
+            if kind in seen:
+                continue
+            seen.add(kind)
+            cues.append((delay, kind))
+            delay += 0.16
+        self._spawn_cues = cues
+
+    def _tick_spawn_cues(self, dt: float) -> None:
+        leftover: list[tuple[float, str]] = []
+        for wait, kind in self._spawn_cues:
+            wait -= dt
+            if wait <= 0:
+                self.audio.play(spawn_sound_name(kind))
+            else:
+                leftover.append((wait, kind))
+        self._spawn_cues = leftover
 
 
     def _make_screen(self, fullscreen: bool = True):
@@ -404,13 +444,9 @@ class Game:
                 self._open_wardrobe()
             return
         if self.state == WARDROBE_ST:
-            if key in (pygame.K_LEFT, pygame.K_a, pygame.K_j):
+            if key in (pygame.K_LEFT, pygame.K_a, pygame.K_j, pygame.K_UP, pygame.K_w, pygame.K_i):
                 self.wear_index = (self.wear_index - 1) % max(1, len(self.wear_choices))
-            elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l):
-                self.wear_index = (self.wear_index + 1) % max(1, len(self.wear_choices))
-            elif key in (pygame.K_UP, pygame.K_w, pygame.K_i):
-                self.wear_index = (self.wear_index - 1) % max(1, len(self.wear_choices))
-            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_k):
+            elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l, pygame.K_DOWN, pygame.K_s, pygame.K_k):
                 self.wear_index = (self.wear_index + 1) % max(1, len(self.wear_choices))
             elif key in (pygame.K_RETURN, pygame.K_SPACE):
                 self._apply_wear_choice(skip=False)
@@ -557,13 +593,18 @@ class Game:
         self.freeze = TROGGLE_FREEZE
         rows, cols = self._board_size()
         occupied = {(t.row, t.col) for t in self.troggles}
+        occupied |= self.fires.cells()
+        occupied |= {(inc.row, inc.col) for inc in self.incoming}
         pr, pc = safe_player_spawn(occupied, self.rng, rows, cols)
         self.player.row, self.player.col = pr, pc
+        self.player.prev_row, self.player.prev_col = pr, pc
 
     def _update(self, dt: float) -> None:
         self.anim += dt
         self.flash_wrong = max(0.0, self.flash_wrong - dt)
         self.banner_timer += dt
+        if self.state in (INTRO_ST, PLAY_ST):
+            self._tick_spawn_cues(dt)
         if self.state == CLEAR_ST:
             if self.banner_timer >= 1.2:
                 self._advance_from_clear()
@@ -591,10 +632,62 @@ class Game:
         else:
             for troggle in self.troggles:
                 troggle.tick_specials(dt, self.player.pos, rows, cols)
+        apply_ignitions(self.troggles, self.fires, rows, cols)
+        self.fires.tick(dt)
+        wanderer = wander_at(self.player.pos, self.troggles)
+        if wanderer is not None:
+            bounce_from_wander(self.player, wanderer, rows, cols)
         if not self.player.invulnerable():
-            if player_hits_hazard(self.player.pos, self.troggles, rows, cols):
+            if player_hits_hazard(self.player.pos, self.troggles, rows, cols, self.fires):
                 self._lose_life(from_troggle=True)
         self.troggles = [t for t in self.troggles if not t.exploded]
+        self._refill_troggles()
+        self._tick_incoming(dt)
+
+    def _refill_troggles(self) -> None:
+        """Queue replacements (with a warning cue) when the roster is short."""
+        rows, cols = self._board_size()
+        missing = missing_roster_kinds(
+            self.level,
+            rows,
+            cols,
+            [t.kind for t in self.troggles],
+            [inc.kind for inc in self.incoming],
+        )
+        if not missing:
+            return
+        occupied = {(t.row, t.col) for t in self.troggles}
+        occupied |= {(inc.row, inc.col) for inc in self.incoming}
+        occupied |= self.fires.cells()
+        occupied.add(self.player.pos)
+        for kind in missing:
+            incoming = next_incoming(
+                kind,
+                self.level,
+                self.player.pos,
+                occupied,
+                self.rng,
+                rows,
+                cols,
+            )
+            if incoming is None:
+                continue
+            occupied.add((incoming.row, incoming.col))
+            self.incoming.append(incoming)
+            self.audio.play(spawn_sound_name(kind))
+
+    def _tick_incoming(self, dt: float) -> None:
+        ready: list[IncomingTroggle] = []
+        waiting: list[IncomingTroggle] = []
+        for inc in self.incoming:
+            inc.warn -= dt
+            if inc.warn <= 0:
+                ready.append(inc)
+            else:
+                waiting.append(inc)
+        self.incoming = waiting
+        for i, inc in enumerate(ready):
+            self.troggles.append(inc.to_troggle(i))
 
     def _draw(self) -> None:
         self.screen.fill(BG)
@@ -720,7 +813,7 @@ class Game:
                 self.outfit,
                 peeking=peeking,
             )
-            dest = sprite.get_rect(center=(pref.centerx, pref.centery + hop + 8))
+            dest = sprite.get_rect(center=munchy_sprite_center(pref.center, hop))
             self.screen.blit(sprite, dest)
             if peeking:
                 # Digit is wider than the 56px sprite (equals-mode expressions).
@@ -736,11 +829,29 @@ class Game:
                 self._draw_carried_badge(pref, hop)
         self._draw_eat_fx(grid_left, grid_top)
 
+        for inc in self.incoming:
+            irect = cell_rect(inc.row, inc.col, grid_left, grid_top)
+            pulse = 80 + int(70 * abs((self.anim * 8) % 2 - 1))
+            pygame.draw.rect(self.screen, (pulse, pulse, 40), irect.inflate(-8, -8), 3, border_radius=6)
+            ghost = troggle_surface(inc.kind, frame, inc.heading[0])
+            ghost.set_alpha(110)
+            self.screen.blit(ghost, ghost.get_rect(midbottom=(irect.centerx, irect.bottom - 4)))
+
         for troggle in self.troggles:
             trect = cell_rect(troggle.row, troggle.col, grid_left, grid_top)
             flash_t = troggle.is_telegraphing and int(self.anim * 10) % 2 == 0
-            sprite = troggle_surface(troggle.kind, frame, troggle.heading[0], flash_t)
-            dest = sprite.get_rect(center=(trect.centerx, trect.centery + 8))
+            look_x = look_y = 0
+            if troggle.kind == "chase":
+                look_x, look_y = look_toward(troggle.pos, self.player.pos)
+            sprite = troggle_surface(
+                troggle.kind,
+                frame,
+                troggle.heading[0],
+                flash_t,
+                look_x,
+                look_y,
+            )
+            dest = sprite.get_rect(midbottom=(trect.centerx, trect.bottom - 4))
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
@@ -756,20 +867,21 @@ class Game:
 
     def _draw_hazards(self, grid_left: int, grid_top: int, rows: int, cols: int) -> None:
         frame = int(self.anim * 8)
+        burning = self.fires.cells()
+        for row, col in burning:
+            rect = cell_rect(row, col, grid_left, grid_top)
+            glow = pygame.Surface(rect.inflate(-8, -8).size, pygame.SRCALPHA)
+            glow.fill((*EMBER, 90))
+            self.screen.blit(glow, rect.inflate(-8, -8).topleft)
+            flame = fire_surface(frame)
+            self.screen.blit(flame, flame.get_rect(center=(rect.centerx, rect.centery + 6)))
         for troggle in self.troggles:
-            if troggle.kind == "fire" and (troggle.is_firing or troggle.is_winding_fire):
+            if troggle.kind == "fire" and troggle.is_winding_fire:
                 fr, fc = troggle.front_cell()
-                if not (0 <= fr < rows and 0 <= fc < cols):
+                if not (0 <= fr < rows and 0 <= fc < cols) or (fr, fc) in burning:
                     continue
                 rect = cell_rect(fr, fc, grid_left, grid_top)
-                if troggle.is_firing:
-                    glow = pygame.Surface(rect.inflate(-8, -8).size, pygame.SRCALPHA)
-                    glow.fill((*EMBER, 90))
-                    self.screen.blit(glow, rect.inflate(-8, -8).topleft)
-                    flame = fire_surface(frame)
-                    self.screen.blit(flame, flame.get_rect(center=(rect.centerx, rect.centery + 6)))
-                else:
-                    pygame.draw.rect(self.screen, FLAME, rect.inflate(-10, -10), 2, border_radius=6)
+                pygame.draw.rect(self.screen, FLAME, rect.inflate(-10, -10), 2, border_radius=6)
             if troggle.is_telegraphing:
                 for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                     nr, nc = troggle.row + dr, troggle.col + dc
@@ -791,7 +903,7 @@ class Game:
         self.screen.blit(veil, (0, 0))
 
     def _draw_carried_badge(self, pref: pygame.Rect, hop: int) -> None:
-        """Carried digit sits above the muncher — never inside the open mouth."""
+        """Carried digit sits above Munchy — never inside the open mouth."""
         if self.carried is None:
             return
         label = self.carried.label
@@ -887,10 +999,10 @@ class Game:
         if self.rule:
             draw_outlined_text(self.screen, self.rule.title, self.font_xl, WHITE, (WINDOW_W // 2, 340))
         if self.rule and self.rule.mode == "pairings":
-            how = "Grab one number (Space), then eat it with a partner that makes the target."
+            how = f"Grab one number (Space), then have {HERO_NAME} eat it with a partner that makes the target."
             extra = "A wrong pair drops what you were carrying — you keep your lives."
         else:
-            how = "Munch matching cells. Leave the rest."
+            how = f"Steer {HERO_NAME}. Munch matching cells. Leave the rest."
             extra = "The board starts small and grows as you level up."
         draw_outlined_text(
             self.screen,
@@ -1129,8 +1241,8 @@ class Game:
             y = rng.randint(80, WINDOW_H - 40)
             c = rng.choice((GOLD, CYAN, ORANGE, YELLOW, GREEN, RED))
             pygame.draw.rect(self.screen, c, (x, y, 6, 6))
-        # bouncing muncher
-        bounce = int(abs(__import__('math').sin(self.anim * 8)) * 18)
+        # bouncing Munchy
+        bounce = int(abs(math.sin(self.anim * 8)) * 18)
         sprite = muncher_surface(int(self.anim * 10) % 2, 1, True, False, self.outfit)
         rect = sprite.get_rect(center=(WINDOW_W // 2, WINDOW_H // 2 + 40 - bounce))
         self.screen.blit(sprite, rect)
