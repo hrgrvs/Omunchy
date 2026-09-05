@@ -63,6 +63,7 @@ from omunchy.entities import (
     spawn_troggles,
 )
 from omunchy.celebrate import CELEBRATE_SECONDS, banner_for_level, is_celebration_level
+from omunchy.pairings import Carry, WRONG_PAIR_COSTS_LIFE, apply_pairings_space, restore_carry
 from omunchy.rules import Rule, rule_for
 from omunchy.progress import stable_rng
 from omunchy.sprites import (
@@ -220,6 +221,7 @@ class Game:
         self.title_index = 0
         self.pause_index = 0
         self.bestiary_back = TITLE_ST
+        self.carried: Carry | None = None
 
         self.audio.play("title")
         self.audio.play_bg()
@@ -231,6 +233,7 @@ class Game:
         self.lives = START_LIVES
         self.outfit = Outfit()
         self.eat_fx = None
+        self.carried = None
         self._begin_level()
 
     def _board_size(self) -> tuple[int, int]:
@@ -257,6 +260,7 @@ class Game:
         self.flash_wrong = 0.0
         self.banner_timer = 0.0
         self.eat_fx = None
+        self.carried = None
         self.state = INTRO_ST
 
 
@@ -450,6 +454,9 @@ class Game:
             return
         if self.eat_fx is not None and not self.eat_fx.done:
             return
+        if self.rule.mode == "pairings":
+            self._pairings_space()
+            return
         cell = self.board.cell(self.player.row, self.player.col)
         if cell.munched:
             return
@@ -481,6 +488,44 @@ class Game:
                 pending_life=True,
             )
 
+    def _pairings_space(self) -> None:
+        """Grab, drop, or eat a pair. Wrong pairs drop the carry (no life)."""
+        assert self.board is not None and self.rule is not None
+        result = apply_pairings_space(self.board, self.carried, self.player.row, self.player.col)
+        self.carried = result.carry
+        if result.kind == "noop":
+            return
+        if result.kind == "grab":
+            self.player.hop_timer = 0.12
+            return
+        if result.kind == "drop":
+            self.player.hop_timer = 0.12
+            return
+        duration = EAT_CORRECT if result.kind == "eat_ok" else EAT_WRONG
+        self.player.chomp_timer = max(MUNCH_LOCK, duration)
+        if result.kind == "eat_ok":
+            self.score += 50 + self.level * 10
+            self.audio.play("correct")
+            self.eat_fx = EatFx(
+                label=result.eat_label,
+                row=result.eat_row,
+                col=result.eat_col,
+                correct=True,
+                duration=duration,
+                pending_clear=result.pending_clear,
+            )
+            return
+        self.audio.play("wrong")
+        self.flash_wrong = 0.35
+        self.eat_fx = EatFx(
+            label=result.eat_label,
+            row=result.eat_row,
+            col=result.eat_col,
+            correct=False,
+            duration=duration,
+            pending_life=WRONG_PAIR_COSTS_LIFE,
+        )
+
     def _finish_eat(self) -> None:
         fx = self.eat_fx
         self.eat_fx = None
@@ -497,6 +542,9 @@ class Game:
             self._lose_life(from_troggle=False)
 
     def _lose_life(self, from_troggle: bool) -> None:
+        if self.board is not None and self.carried is not None:
+            restore_carry(self.board, self.carried)
+            self.carried = None
         self.lives -= 1
         self.best = max(self.best, self.score)
         if from_troggle:
@@ -604,6 +652,14 @@ class Game:
         pygame.draw.rect(self.screen, RULE_BG, (0, HUD_H, WINDOW_W, RULE_H))
         rule_text = self.rule.title if self.rule else ""
         draw_outlined_text(self.screen, rule_text, self.font_md, WHITE, (WINDOW_W // 2, HUD_H + RULE_H // 2))
+        if self.carried is not None:
+            draw_outlined_text(
+                self.screen,
+                f"holding {self.carried.label}",
+                self.font_sm,
+                GOLD,
+                (WINDOW_W - 140, HUD_H + RULE_H // 2),
+            )
 
     def _draw_playfield(self) -> None:
         self._draw_hud()
@@ -676,6 +732,8 @@ class Game:
                     CELL_DIGIT,
                     pref.center,
                 )
+            if self.carried is not None:
+                self._draw_carried_badge(pref, hop)
         self._draw_eat_fx(grid_left, grid_top)
 
         for troggle in self.troggles:
@@ -686,7 +744,8 @@ class Game:
             self.screen.blit(sprite, dest)
 
         pygame.draw.rect(self.screen, BG_DEEP, (0, WINDOW_H - HINT_H, WINDOW_W, HINT_H))
-        hint = "ARROWS/WASD/IJKL tap to move   SPACE munch   ESC pause / leave a screen   M mute   F11 window"
+        space = "SPACE grab / pair" if self.rule and self.rule.mode == "pairings" else "SPACE munch"
+        hint = f"ARROWS/WASD/IJKL tap to move   {space}   ESC pause / leave a screen   M mute   F11 window"
         draw_outlined_text(
             self.screen,
             hint,
@@ -730,6 +789,23 @@ class Game:
         veil = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
         veil.fill((0, 0, 0, alpha))
         self.screen.blit(veil, (0, 0))
+
+    def _draw_carried_badge(self, pref: pygame.Rect, hop: int) -> None:
+        """Carried digit sits above the muncher — never inside the open mouth."""
+        if self.carried is None:
+            return
+        label = self.carried.label
+        cx = pref.centerx + (22 if self.player.facing[0] >= 0 else -22)
+        cy = pref.top + hop + 6
+        cy = max(HUD_H + RULE_H + 14, cy)
+        # Pill wide enough for 3-digit addends (900) so digits stay readable.
+        img = self.font_sm.render(label, True, WHITE)
+        box = img.get_rect()
+        box.inflate_ip(16, 8)
+        box.center = (cx, cy)
+        pygame.draw.rect(self.screen, (12, 36, 28), box, border_radius=8)
+        pygame.draw.rect(self.screen, GOLD, box, 2, border_radius=8)
+        draw_outlined_text(self.screen, label, self.font_sm, WHITE, box.center)
 
     def _draw_eat_fx(self, grid_left: int, grid_top: int) -> None:
         fx = self.eat_fx
@@ -810,16 +886,22 @@ class Game:
         draw_outlined_text(self.screen, "GET READY", self.font_lg, GOLD, (WINDOW_W // 2, 250))
         if self.rule:
             draw_outlined_text(self.screen, self.rule.title, self.font_xl, WHITE, (WINDOW_W // 2, 340))
+        if self.rule and self.rule.mode == "pairings":
+            how = "Grab one number (Space), then eat it with a partner that makes the target."
+            extra = "A wrong pair drops what you were carrying — you keep your lives."
+        else:
+            how = "Munch matching cells. Leave the rest."
+            extra = "The board starts small and grows as you level up."
         draw_outlined_text(
             self.screen,
-            "Munch matching cells. Leave the rest.",
+            how,
             self.font_sm,
             CREAM,
             (WINDOW_W // 2, 420),
         )
         draw_outlined_text(
             self.screen,
-            "The board starts small and grows as you level up.",
+            extra,
             self.font_tiny,
             CREAM,
             (WINDOW_W // 2, 456),

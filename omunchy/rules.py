@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+from omunchy.pairings import addends_of, pair_sum_correct, pairings_spec
+
 SMALL_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29)
 
 
@@ -29,8 +31,6 @@ FACTORS_STEPS = (8, 10, 12, 12, 16, 18, 20, 24, 24, 30, 36)
 EQUALS_STEPS = (10, 10, 12, 12, 15, 16, 18, 20)
 
 PRIME_MAX_STEPS = (20, 20, 23, 29, 29)
-
-MIXED_CYCLE = ("multiples", "factors", "primes", "equals")
 
 
 def is_prime(n: int) -> bool:
@@ -61,6 +61,7 @@ class Rule:
     title: str
     param: int | None = None
     max_n: int | None = None
+    pairs: tuple[tuple[int, int], ...] = ()
 
     def is_correct(self, value: int) -> bool:
         if self.mode == "multiples":
@@ -71,23 +72,26 @@ class Rule:
             return is_prime(value)
         if self.mode == "equals":
             return self.param is not None and value == self.param
+        if self.mode == "pairings":
+            return self.is_pair_member(value)
         return False
+
+    def is_pair_member(self, value: int) -> bool:
+        return self.mode == "pairings" and value in addends_of(self.pairs)
+
+    def is_correct_pair(self, a: int, b: int) -> bool:
+        return self.mode == "pairings" and self.param is not None and pair_sum_correct(a, b, self.param)
 
 
 def resolve_play_mode(selected: str, level: int) -> str:
-    if selected == "mixed":
-        return MIXED_CYCLE[(level - 1) % len(MIXED_CYCLE)]
+    del level
     return selected
 
 
 def rule_for(selected_mode: str, level: int) -> Rule:
-    """Build a rule for 1-based level. selected_mode may be mixed."""
+    """Build a rule for a 1-based level."""
     mode = resolve_play_mode(selected_mode, level)
     idx = level - 1
-    if selected_mode == "mixed":
-        # Each visit to a mode gets a bit harder.
-        cycle_pass = (level - 1) // len(MIXED_CYCLE)
-        idx = cycle_pass
     if mode == "multiples":
         factor, max_n = MULTIPLES_STEPS[min(idx, len(MULTIPLES_STEPS) - 1)]
         if idx >= len(MULTIPLES_STEPS):
@@ -109,4 +113,14 @@ def rule_for(selected_mode: str, level: int) -> Rule:
         if idx >= len(EQUALS_STEPS):
             target = EQUALS_STEPS[-1]
         return Rule("equals", f"Equals {target}", param=target, max_n=target + 12)
+    if mode == "pairings":
+        target, pairs = pairings_spec(level)
+        max_n = max(max(pair) for pair in pairs)
+        return Rule(
+            "pairings",
+            f"Make {target}",
+            param=target,
+            max_n=max_n,
+            pairs=pairs,
+        )
     raise ValueError(f"Unknown mode: {mode}")

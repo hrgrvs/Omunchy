@@ -84,20 +84,20 @@ HUNTER = (36, 150, 132)
 HUNTER_DARK = (12, 72, 64)
 FUSE = (255, 220, 80)
 
-MODES = ("multiples", "factors", "primes", "equals", "mixed")
+MODES = ("multiples", "factors", "primes", "equals", "pairings")
 MODE_LABELS = {
     "multiples": "Multiples",
     "factors": "Factors",
     "primes": "Primes",
     "equals": "Equals",
-    "mixed": "Mixed",
+    "pairings": "Pairings",
 }
 MODE_BLURBS = {
     "multiples": "Munch multiples of a number (2 through 20, in order).",
     "factors": "Munch the factors of a number up to 36.",
     "primes": "Munch prime numbers (small primes through 29).",
     "equals": "Munch expressions that equal the target.",
-    "mixed": "Cycle through all four modes as you level up.",
+    "pairings": "Grab one number, then eat it with a partner that makes 10, then 100, then 1000.",
 }
 
 

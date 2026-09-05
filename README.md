@@ -4,6 +4,14 @@ Math arcade for grades 2–5. Munch the numbers that match the rule; dodge Trogg
 
 The board starts at **4×5** and grows every two levels up to **6×8**. Each mode+level plays the same way every time: same rule, same board size, same Troggle mix, and the same number layout.
 
+Modes (pick one on the title screen):
+
+- **Multiples** — munch multiples of 2 through 20, in order
+- **Factors** — munch the factors of a number up to 36
+- **Primes** — munch small primes through 29
+- **Equals** — munch expressions that equal the target
+- **Pairings** — grab one number (Space), carry it, then Space on a partner that **adds up to the level target**. Early levels make **10** (1+9, 2+8, … 5+5), then **100**, then **1000**. A wrong pair drops the number you were carrying and does **not** cost a life (Troggles still do). Clear the board by eating every complementary pair.
+
 Every three cleared levels you pick a wearable from a short list (hat, crown, cape, glasses, monocle, mustache, cane, or shoes). One item per spot — a new hat replaces the old hat, but you can stack different spots. Gear lasts for the current run.
 
 Open **Troggles** from the title screen or the pause menu to see each type with its sprite and a short description. Troggles unlock slowly and move at a kid-fair pace:
@@ -91,7 +99,7 @@ Uses system pygame when available, otherwise sets up a venv. Prefer `python -m o
 ## Controls
 
 - Arrows / WASD / IJKL — tap to move one cell (also pick a wearable). Every tap steps immediately; holding does not walk.
-- Space — munch (or confirm a wearable / skip get-ready, level-clear, and celebration)
+- Space — munch (in Pairings: grab, then eat a pair; or confirm a wearable / skip get-ready, level-clear, and celebration)
 - Esc — leave or unstick the current screen (quit on the title screen; pause while playing; skip a wearable / celebration / level-clear; close Troggles)
 - F11 — toggle fullscreen / window
 - M — mute

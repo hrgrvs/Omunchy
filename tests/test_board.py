@@ -62,7 +62,7 @@ class BoardSizeTests(unittest.TestCase):
 class BoardTests(unittest.TestCase):
     def test_all_modes_have_a_fair_mix(self) -> None:
         rng = random.Random(42)
-        for mode in ("multiples", "factors", "primes", "equals", "mixed"):
+        for mode in ("multiples", "factors", "primes", "equals", "pairings"):
             for level in range(1, 10):
                 rule = rule_for(mode, level)
                 board = generate_board(rule, level, rng)

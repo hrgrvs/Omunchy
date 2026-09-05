@@ -56,13 +56,15 @@ class PygameSmokeTests(unittest.TestCase):
         self.assertIn("correct", game.audio._sounds)
         self.assertIn("celebrate", game.audio._sounds)
 
-        for mode in ("multiples", "factors", "primes", "equals", "mixed"):
+        for mode in ("multiples", "factors", "primes", "equals", "pairings"):
             game.start_run(mode)
             self.assertEqual(game.state, INTRO_ST, msg=mode)
             self.assertIsNotNone(game.board)
             self.assertGreater(game.board.remaining_correct(), 0, msg=mode)
             self.assertEqual((game.board.rows, game.board.cols), (4, 5), msg=mode)
             self.assertTrue(game.board.in_bounds(game.player.row, game.player.col))
+        # Pairings grab does not start an eat animation — use a munch mode for the rest.
+        game.start_run("multiples")
         self.assertEqual(len(game.troggles), 1)
         self.assertEqual(game.troggles[0].kind, "wander")
 
