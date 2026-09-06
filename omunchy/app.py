@@ -1266,7 +1266,7 @@ class Game:
 def main() -> None:
     from omunchy.update import maybe_update_and_reexec
 
-    maybe_update_and_reexec()
+    maybe_update_and_reexec(splash=True)
     pygame.mixer.pre_init(22050, -16, 1, 512)
     pygame.init()
     try:

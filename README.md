@@ -166,7 +166,7 @@ Uses system pygame when available, otherwise sets up a venv. On Omarchy/Arch aft
 
 ## Updates
 
-Each launch from a **git clone** checks `origin` for updates (prefers `main`) and fast-forwards when it can (`git pull --ff-only`). If files changed, the process restarts itself so the new code is what you play. That needs **git** and a working **network**; the check gives up after about 12 seconds so a hung network cannot freeze startup.
+Each launch from a **git clone** checks `origin` for updates (prefers `main`) and fast-forwards when it can (`git pull --ff-only`). A short **splash** shows Munchy running across a 16:9 screen and a status bar (checking → updating → ready, or offline / couldn't update). If the check finishes quickly the splash still appears for a moment, then the title screen. If files changed, the process restarts itself so the new code is what you play — that second start skips the splash. That needs **git** and a working **network**; the check gives up after about 12 seconds so a hung network cannot freeze startup.
 
 If you are offline, git is missing, this is not a clone, or your local copy has diverged from `origin`, the game still starts with the current code. It never force-pushes or throws away local changes.
 
