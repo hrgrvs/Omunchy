@@ -22,6 +22,7 @@ from omunchy.update import (
     reexec_self,
     reset_for_tests,
     run_git,
+    splash_phase_for,
 )
 
 
@@ -320,6 +321,83 @@ class UpdateCheckTests(UpdateTestCase):
             main_text.index("maybe_update_and_reexec"),
             main_text.index("from omunchy.app import main"),
         )
+        self.assertIn("splash=True", source)
+        self.assertIn("splash=True", main_text)
+
+    def test_progress_checking_then_done(self) -> None:
+        phases: list[str] = []
+        outcome = self._check(FakeGit(), on_progress=lambda phase, _msg: phases.append(phase))
+        self.assertEqual(outcome.status, "up_to_date")
+        self.assertEqual(phases, ["checking", "done"])
+        self.assertEqual(splash_phase_for(outcome), "done")
+
+    def test_progress_checking_updating_done(self) -> None:
+        phases: list[str] = []
+        outcome = self._check(
+            FakeGit(head="aaa", remote="bbb"),
+            on_progress=lambda phase, _msg: phases.append(phase),
+        )
+        self.assertEqual(outcome.status, "updated")
+        self.assertEqual(phases, ["checking", "updating", "done"])
+        self.assertEqual(splash_phase_for(outcome), "done")
+
+    def test_progress_offline_on_fetch_failure(self) -> None:
+        phases: list[str] = []
+        outcome = self._check(
+            FakeGit(fetch_result=GitResult(1, stderr="Could not resolve host")),
+            on_progress=lambda phase, _msg: phases.append(phase),
+        )
+        self.assertEqual(outcome.status, "failed")
+        self.assertEqual(phases, ["checking", "offline"])
+        self.assertEqual(splash_phase_for(outcome), "offline")
+
+    def test_progress_failed_when_diverged(self) -> None:
+        phases: list[str] = []
+        outcome = self._check(
+            FakeGit(head="local", remote="origin", diverged=True),
+            on_progress=lambda phase, _msg: phases.append(phase),
+        )
+        self.assertEqual(outcome.status, "diverged")
+        self.assertEqual(phases, ["checking", "failed"])
+        self.assertEqual(splash_phase_for(outcome), "failed")
+
+    def test_splash_flag_skipped_when_skip_env(self) -> None:
+        os.environ[SKIP_ENV] = "1"
+        opened: list[str] = []
+
+        def boom(*_args, **_kwargs):
+            raise AssertionError("git should not run when OMUNCHY_SKIP_UPDATE=1")
+
+        with patch("omunchy.update_splash.run_update_splash", side_effect=lambda **_k: opened.append("splash")):
+            outcome = maybe_update_and_reexec(root=self.root, git_runner=boom, splash=True)
+        self.assertEqual(outcome.status, "skipped")
+        self.assertEqual(opened, [])
+
+    def test_splash_flag_skipped_after_reexec_env(self) -> None:
+        os.environ[REEXEC_ENV] = "1"
+        opened: list[str] = []
+        with patch("omunchy.update_splash.run_update_splash", side_effect=lambda **_k: opened.append("splash")):
+            outcome = maybe_update_and_reexec(
+                root=self.root,
+                git_runner=lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("no git")),
+                splash=True,
+            )
+        self.assertEqual(outcome.status, "skipped")
+        self.assertEqual(opened, [])
+
+    def test_splash_true_delegates_to_splash(self) -> None:
+        fake = UpdateOutcome("up_to_date", "already up to date")
+        git = FakeGit()
+        with patch("omunchy.update_splash.run_update_splash", return_value=fake) as run:
+            outcome = maybe_update_and_reexec(
+                root=self.root,
+                git_runner=git,
+                splash=True,
+                _reexec=lambda: None,
+            )
+        run.assert_called_once()
+        self.assertEqual(outcome.status, "up_to_date")
+        self.assertFalse(git.ran("fetch"))
 
 
 class RunGitTests(unittest.TestCase):
